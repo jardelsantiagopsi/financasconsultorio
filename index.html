@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Finanças">
-<link rel="apple-touch-icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-192.png">
 
 <!-- Firebase CDN -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -340,13 +340,8 @@ tr:hover td { background:rgba(255,255,255,.02); }
 <div id="auth-screen">
   <div class="auth-box">
     <div class="auth-logo">
-      <svg viewBox="0 0 48 48" fill="none">
-        <rect width="48" height="48" rx="12" fill="#1a2236"/>
-        <path d="M14 34L20 14l8 14 4-8 6 14" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
-        <circle cx="34" cy="14" r="3" fill="#10b981"/>
-      </svg>
-      <h1>Finanças Consultório</h1>
-      <p>Psicologia · Gestão financeira</p>
+      <img src="logo-256.jpg" alt="Finanças Consultório" style="width:88px;height:88px;border-radius:18px;object-fit:cover;box-shadow:0 8px 24px rgba(0,0,0,.5)">
+      <p style="margin-top:16px;font-size:12px;color:var(--text3)">Psicologia · Gestão financeira</p>
     </div>
     <div class="auth-field">
       <label>E-mail</label>
@@ -364,7 +359,10 @@ tr:hover td { background:rgba(255,255,255,.02); }
 <!-- APP -->
 <div id="app">
   <div class="topbar">
-    <div class="topbar-brand" id="topbar-brand" style="cursor:pointer;user-select:none">Finanças <span>Consultório</span></div>
+    <div class="topbar-brand" id="topbar-brand" style="cursor:pointer;user-select:none;display:flex;align-items:center;gap:8px">
+      <img src="logo-256.jpg" alt="" style="width:30px;height:30px;border-radius:7px;object-fit:cover;flex-shrink:0">
+      <span>Finanças <span style="color:var(--accent2)">Consultório</span></span>
+    </div>
     <div class="topbar-right">
       <div class="month-nav">
         <button id="prev-month">&#8249;</button>
@@ -873,7 +871,8 @@ function renderReceitas() {
   const main = document.getElementById('main-content');
   main.innerHTML = `
     <div class="section-header">
-      <div class="section-title">Receitas${kpiFilter?' — '+({recebido:'Pagas',areceber:'Pendentes'}[kpiFilter]||''):''}\n        <span style="font-size:14px;font-weight:400;color:var(--text2);margin-left:12px">${fmtBRL(total)}</span>
+      <div class="section-title">Receitas${kpiFilter?' — '+({recebido:'Pagas',areceber:'Pendentes'}[kpiFilter]||''):''}
+        <span style="font-size:14px;font-weight:400;color:var(--text2);margin-left:12px">${fmtBRL(total)}</span>
       </div>
       <button class="btn btn-primary" id="btn-new-rec">+ Nova Receita</button>
     </div>
@@ -1068,7 +1067,8 @@ function renderDespesas() {
   const main = document.getElementById('main-content');
   main.innerHTML = `
     <div class="section-header">
-      <div class="section-title">Despesas\n        <span style="font-size:14px;font-weight:400;color:var(--text2);margin-left:12px">${fmtBRL(total)}</span>
+      <div class="section-title">Despesas
+        <span style="font-size:14px;font-weight:400;color:var(--text2);margin-left:12px">${fmtBRL(total)}</span>
       </div>
       <button class="btn btn-primary" id="btn-new-desp">+ Nova Despesa</button>
     </div>
