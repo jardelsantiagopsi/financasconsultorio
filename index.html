@@ -527,7 +527,7 @@ async function refreshView() {
     case 'pacientes':  renderPacientes(); break;
     case 'receitas':   renderReceitas();  break;
     case 'despesas':   renderDespesas();  break;
-    case 'fechamento': renderFechamento();break;
+    case 'fechamento': await renderFechamento();break;
   }
 }
 
@@ -1097,7 +1097,7 @@ function openDespModal(desp=null) {
 // ── FECHAMENTO ───────────────────────────────────────────────
 const LIMITE_ISENCAO = 5000;
 
-function renderFechamento() {
+async function renderFechamento() {
   const mk = monthKey(currentMonth);
   const receitas = _receitas.filter(r=>(r.competencia||r.data||'').startsWith(mk) && r.status==='pago');
 
@@ -1105,15 +1105,16 @@ function renderFechamento() {
   const pacMap = {};
   receitas.forEach(r => {
     const pid = r.pacienteId || '_sem_pac';
-    if(!pacMap[pid]) pacMap[pid] = { valor:0, receitas:[] };
+    if(!pacMap[pid]) pacMap[pid] = { valor:0 };
     pacMap[pid].valor += r.valor||0;
-    pacMap[pid].receitas.push(r);
   });
 
-  // Load saved allocation for this month
-  const savedKey = `fc_${currentUser.uid}_${mk}`;
+  // Load allocation from Firestore
   let allocation = {};
-  try { allocation = JSON.parse(localStorage.getItem(savedKey)||'{}'); } catch(e) {}
+  try {
+    const snap = await col('fechamentos').doc(mk).get();
+    allocation = snap.data()?.allocation || {};
+  } catch(e) {}
 
   const entries = Object.entries(pacMap).map(([pid, info]) => {
     const pac = _pacientes.find(p=>p.id===pid);
@@ -1122,7 +1123,6 @@ function renderFechamento() {
     return { pid, nome, valor: info.valor, tipo };
   }).sort((a,b)=>b.valor-a.valor);
 
-  // Auto-suggest: fill recibo up to limit
   const totalRecibo = entries.filter(e=>e.tipo==='recibo').reduce((a,e)=>a+e.valor,0);
   const totalNF     = entries.filter(e=>e.tipo==='nf').reduce((a,e)=>a+e.valor,0);
   const pct = Math.min(100, (totalRecibo/LIMITE_ISENCAO)*100);
@@ -1207,28 +1207,7 @@ function renderFechamento() {
         </div>
       </div>
     </div>
-
-    <!-- Hidden printable area -->
-    <div id="fc-print-area" style="display:none"></div>
   `;
-
-  // Click to cycle: nenhum → recibo → nf → nenhum
-  main.querySelectorAll('.fc-patient').forEach(el => {
-    el.addEventListener('click', () => {
-      const pid = el.dataset.pid;
-      const e = entries.find(x=>x.pid===pid);
-      if(!e) return;
-      const cycle = {nenhum:'recibo', recibo:'nf', nf:'nenhum'};
-      e.tipo = cycle[e.tipo]||'nenhum';
-      allocation[pid] = e.tipo;
-      localStorage.setItem(savedKey, JSON.stringify(allocation));
-      el.className = `fc-patient ${e.tipo==='recibo'?'recibo':e.tipo==='nf'?'nf':''}`;
-      el.querySelector('.badge').className = `badge ${e.tipo==='recibo'?'blue':e.tipo==='nf'?'yellow':'gray'}`;
-      el.querySelector('.badge').textContent = e.tipo==='recibo'?'Recibo':e.tipo==='nf'?'NF':'Não alocado';
-      updateFcProgress();
-      document.getElementById('fc-resumo').innerHTML = renderFcResumo(entries, totalDespesas);
-    });
-  });
 
   function updateFcProgress() {
     const rec = entries.filter(e=>e.tipo==='recibo').reduce((a,e)=>a+e.valor,0);
@@ -1239,22 +1218,8 @@ function renderFechamento() {
     if(rt) rt.textContent = fmtBRL(rec);
   }
 
-  document.getElementById('btn-auto-suggest').addEventListener('click', () => {
-    let remaining = LIMITE_ISENCAO;
-    entries.sort((a,b)=>b.valor-a.valor).forEach(e => {
-      if(e.valor <= remaining) { e.tipo='recibo'; remaining-=e.valor; }
-      else { e.tipo='nf'; }
-      allocation[e.pid] = e.tipo;
-    });
-    localStorage.setItem(savedKey, JSON.stringify(allocation));
-    document.getElementById('fc-entries').innerHTML = entries.map(entryCard).join('');
-    document.getElementById('fc-resumo').innerHTML = renderFcResumo(entries, totalDespesas);
-    updateFcProgress();
-    main.querySelectorAll('.fc-patient').forEach(el => {
-      el.addEventListener('click', arguments.callee);
-    });
-    toast('Alocação sugerida aplicada','success');
-    // Re-attach handlers
+  // Single source of truth for click handlers — called after every render
+  function attachCardHandlers() {
     document.querySelectorAll('.fc-patient').forEach(el => {
       el.addEventListener('click', () => {
         const pid = el.dataset.pid;
@@ -1263,7 +1228,7 @@ function renderFechamento() {
         const cycle = {nenhum:'recibo', recibo:'nf', nf:'nenhum'};
         e.tipo = cycle[e.tipo]||'nenhum';
         allocation[pid] = e.tipo;
-        localStorage.setItem(savedKey, JSON.stringify(allocation));
+        col('fechamentos').doc(mk).set({ allocation }, { merge:true });
         el.className = `fc-patient ${e.tipo==='recibo'?'recibo':e.tipo==='nf'?'nf':''}`;
         el.querySelector('.badge').className = `badge ${e.tipo==='recibo'?'blue':e.tipo==='nf'?'yellow':'gray'}`;
         el.querySelector('.badge').textContent = e.tipo==='recibo'?'Recibo':e.tipo==='nf'?'NF':'Não alocado';
@@ -1271,6 +1236,23 @@ function renderFechamento() {
         document.getElementById('fc-resumo').innerHTML = renderFcResumo(entries, totalDespesas);
       });
     });
+  }
+
+  attachCardHandlers();
+
+  document.getElementById('btn-auto-suggest').addEventListener('click', async () => {
+    let remaining = LIMITE_ISENCAO;
+    entries.sort((a,b)=>b.valor-a.valor).forEach(e => {
+      e.tipo = e.valor <= remaining ? 'recibo' : 'nf';
+      if(e.tipo==='recibo') remaining -= e.valor;
+      allocation[e.pid] = e.tipo;
+    });
+    await col('fechamentos').doc(mk).set({ allocation }, { merge:true });
+    document.getElementById('fc-entries').innerHTML = entries.map(entryCard).join('');
+    document.getElementById('fc-resumo').innerHTML = renderFcResumo(entries, totalDespesas);
+    updateFcProgress();
+    attachCardHandlers();
+    toast('Alocação sugerida aplicada','success');
   });
 
   document.getElementById('btn-export-pdf').addEventListener('click', () => exportPDF(entries, totalDespesas, mk));

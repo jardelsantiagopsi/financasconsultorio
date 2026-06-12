@@ -2,7 +2,7 @@ name: Deploy GitHub Pages
 
 on:
   push:
-    branches: [main, "claude/firestore-migration-deploy-r6ocoi"]
+    branches: [main]
 
 permissions:
   contents: write
