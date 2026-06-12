@@ -1,12 +1,13 @@
 'use strict';
 
-const CACHE = 'financasconsultorio-v1';
+const CACHE = 'financasconsultorio-v2';
 const APP_SHELL = [
   '/financasconsultorio/',
   '/financasconsultorio/index.html',
   '/financasconsultorio/manifest.json',
-  '/financasconsultorio/icon.svg',
-  '/financasconsultorio/icon-maskable.svg',
+  '/financasconsultorio/logo-256.jpg',
+  '/financasconsultorio/icon-192.png',
+  '/financasconsultorio/icon-512.png',
 ];
 
 self.addEventListener('install', e => {
