@@ -187,7 +187,6 @@ tr:hover td { background:rgba(255,255,255,.02); }
 .modal-footer { padding:16px 24px; border-top:1px solid var(--border); display:flex; gap:10px; justify-content:flex-end; }
 
 .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-.form-grid.cols-1 { grid-template-columns:1fr; }
 .field { display:flex; flex-direction:column; gap:5px; }
 .field.span2 { grid-column:span 2; }
 .field label { font-size:12px; font-weight:500; color:var(--text2); }
@@ -463,10 +462,7 @@ auth.onAuthStateChanged(user => {
 
 function initNav() {
   document.querySelectorAll('.nav-item').forEach(el => {
-    el.addEventListener('click', () => {
-      kpiFilter = null;
-      showView(el.dataset.view);
-    });
+    el.addEventListener('click', () => { kpiFilter = null; showView(el.dataset.view); });
   });
 }
 
@@ -487,7 +483,7 @@ async function refreshView() {
     case 'pacientes':  renderPacientes(); break;
     case 'receitas':   renderReceitas();  break;
     case 'despesas':   renderDespesas();  break;
-    case 'fechamento': renderFechamento();break;
+    case 'fechamento': await renderFechamento(); break;
   }
 }
 
@@ -519,8 +515,7 @@ function renderDashboard() {
     </div>
   `).join('');
   const recent = [...receitas.map(r=>({...r,_type:'receita'})), ...despesas.map(d=>({...d,_type:'despesa'}))]
-    .sort((a,b)=>(b.data||'').localeCompare(a.data||''))
-    .slice(0,8);
+    .sort((a,b)=>(b.data||'').localeCompare(a.data||'')).slice(0,8);
   const recentHTML = recent.length ? recent.map(item => {
     const pac = item._type==='receita' ? _pacientes.find(p=>p.id===item.pacienteId) : null;
     const name = item._type==='receita' ? (pac?esc(pac.nome):'<span style="color:var(--text3)">(paciente removido)</span>') : esc(item.categoria||'—');
@@ -528,30 +523,22 @@ function renderDashboard() {
       <td>${fmtDate(item.data||item.competencia||'')}</td>
       <td>${name}</td>
       <td>${item._type==='receita'?'<span class="badge blue">Receita</span>':'<span class="badge red">Despesa</span>'}</td>
-      <td style="text-align:right;font-weight:600;color:${item._type==='receita'?'var(--green)':'var(--red)'}">
-        ${item._type==='receita'?'+':'-'}${fmtBRL(item.valor)}
-      </td>
+      <td style="text-align:right;font-weight:600;color:${item._type==='receita'?'var(--green)':'var(--red)'}">${item._type==='receita'?'+':'-'}${fmtBRL(item.valor)}</td>
     </tr>`;
   }).join('') : '<tr class="empty-row"><td colspan="4">Nenhum lançamento neste mês</td></tr>';
   main.innerHTML = `
-    <div class="section-header">
-      <div class="section-title">Dashboard — ${MONTHS_PT[currentMonth.getMonth()]} ${currentMonth.getFullYear()}</div>
-    </div>
+    <div class="section-header"><div class="section-title">Dashboard — ${MONTHS_PT[currentMonth.getMonth()]} ${currentMonth.getFullYear()}</div></div>
     <div class="kpi-grid">${kpiHTML}</div>
     <div class="card">
       <div class="card-header"><span class="card-title">Lançamentos recentes</span></div>
-      <table>
-        <thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th style="text-align:right">Valor</th></tr></thead>
-        <tbody>${recentHTML}</tbody>
-      </table>
+      <table><thead><tr><th>Data</th><th>Descrição</th><th>Tipo</th><th style="text-align:right">Valor</th></tr></thead><tbody>${recentHTML}</tbody></table>
     </div>
   `;
   main.querySelectorAll('.kpi-card').forEach(card => {
     card.addEventListener('click', () => {
       const k = card.dataset.kpi;
       kpiFilter = kpiFilter===k ? null : k;
-      if(k==='despesas') showView('despesas');
-      else showView('receitas');
+      if(k==='despesas') showView('despesas'); else showView('receitas');
     });
   });
 }
@@ -567,16 +554,10 @@ function renderPacientes() {
       <td>${fmtBRL(p.valorSessao)}</td>
       <td>${p.planoSessoes||1} sessões</td>
       <td><span class="badge ${p.convenio?'blue':'gray'}">${p.convenio?'Convênio':'Particular'}</span></td>
-      <td>
-        <div style="display:flex;gap:6px">
-          <button class="btn-icon btn-edit-pac" data-id="${esc(p.id)}" title="Editar">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="btn-icon btn-del-pac" data-id="${esc(p.id)}" data-nome="${esc(p.nome)}" title="Excluir">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-          </button>
-        </div>
-      </td>
+      <td><div style="display:flex;gap:6px">
+        <button class="btn-icon btn-edit-pac" data-id="${esc(p.id)}" title="Editar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button class="btn-icon btn-del-pac" data-id="${esc(p.id)}" data-nome="${esc(p.nome)}" title="Excluir"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
+      </div></td>
     </tr>
   `).join('') : '<tr class="empty-row"><td colspan="7">Nenhum paciente cadastrado</td></tr>';
   main.innerHTML = `
@@ -584,15 +565,11 @@ function renderPacientes() {
       <div class="section-title">Pacientes</div>
       <button class="btn btn-primary" id="btn-new-pac">+ Novo Paciente</button>
     </div>
-    <div class="filter-row">
-      <input type="text" id="filter-pac" placeholder="Buscar por nome ou CPF...">
-    </div>
-    <div class="card">
-      <table>
-        <thead><tr><th>Nome</th><th>CPF</th><th>E-mail</th><th>Valor/Sessão</th><th>Plano</th><th>Tipo</th><th></th></tr></thead>
-        <tbody id="pac-tbody">${rows}</tbody>
-      </table>
-    </div>
+    <div class="filter-row"><input type="text" id="filter-pac" placeholder="Buscar por nome ou CPF..."></div>
+    <div class="card"><table>
+      <thead><tr><th>Nome</th><th>CPF</th><th>E-mail</th><th>Valor/Sessão</th><th>Plano</th><th>Tipo</th><th></th></tr></thead>
+      <tbody id="pac-tbody">${rows}</tbody>
+    </table></div>
   `;
   document.getElementById('btn-new-pac').addEventListener('click', () => openPacModal());
   document.getElementById('filter-pac').addEventListener('input', e => {
@@ -615,36 +592,12 @@ function openPacModal(pac=null) {
     title: isEdit ? 'Editar Paciente' : 'Novo Paciente',
     body: `
       <div class="form-grid">
-        <div class="field span2">
-          <label>Nome completo *</label>
-          <input id="f-nome" value="${esc(pac?.nome||'')}" placeholder="Nome do paciente">
-          <div class="field-error" id="e-nome"></div>
-        </div>
-        <div class="field">
-          <label>CPF</label>
-          <input id="f-cpf" value="${esc(pac?.cpf||'')}" placeholder="000.000.000-00" maxlength="14">
-          <div class="field-error" id="e-cpf"></div>
-        </div>
-        <div class="field">
-          <label>E-mail</label>
-          <input id="f-email" type="email" value="${esc(pac?.email||'')}" placeholder="email@exemplo.com">
-        </div>
-        <div class="field">
-          <label>Valor por sessão (R$) *</label>
-          <input id="f-vsessao" type="number" min="0" step="0.01" value="${pac?.valorSessao||''}">
-          <div class="field-error" id="e-vsessao"></div>
-        </div>
-        <div class="field">
-          <label>Sessões no plano padrão</label>
-          <input id="f-plano" type="number" min="1" value="${pac?.planoSessoes||4}">
-        </div>
-        <div class="field span2">
-          <label>Tipo de atendimento</label>
-          <select id="f-conv">
-            <option value="0" ${!pac?.convenio?'selected':''}>Particular</option>
-            <option value="1" ${pac?.convenio?'selected':''}>Convênio</option>
-          </select>
-        </div>
+        <div class="field span2"><label>Nome completo *</label><input id="f-nome" value="${esc(pac?.nome||'')}" placeholder="Nome do paciente"><div class="field-error" id="e-nome"></div></div>
+        <div class="field"><label>CPF</label><input id="f-cpf" value="${esc(pac?.cpf||'')}" placeholder="000.000.000-00" maxlength="14"><div class="field-error" id="e-cpf"></div></div>
+        <div class="field"><label>E-mail</label><input id="f-email" type="email" value="${esc(pac?.email||'')}" placeholder="email@exemplo.com"></div>
+        <div class="field"><label>Valor por sessão (R$) *</label><input id="f-vsessao" type="number" min="0" step="0.01" value="${pac?.valorSessao||''}"><div class="field-error" id="e-vsessao"></div></div>
+        <div class="field"><label>Sessões no plano padrão</label><input id="f-plano" type="number" min="1" value="${pac?.planoSessoes||4}"></div>
+        <div class="field span2"><label>Tipo de atendimento</label><select id="f-conv"><option value="0" ${!pac?.convenio?'selected':''}>Particular</option><option value="1" ${pac?.convenio?'selected':''}>Convênio</option></select></div>
       </div>
     `,
     onConfirm: async () => {
@@ -655,9 +608,9 @@ function openPacModal(pac=null) {
       const plano  = parseInt(document.getElementById('f-plano').value)||4;
       const conv   = document.getElementById('f-conv').value==='1';
       let valid = true;
-      document.getElementById('e-nome').textContent = '';
-      document.getElementById('e-cpf').textContent  = '';
-      document.getElementById('e-vsessao').textContent = '';
+      document.getElementById('e-nome').textContent='';
+      document.getElementById('e-cpf').textContent='';
+      document.getElementById('e-vsessao').textContent='';
       if(!nome) { document.getElementById('e-nome').textContent='Nome obrigatório'; valid=false; }
       if(cpfRaw && !validCPF(cpfRaw)) { document.getElementById('e-cpf').textContent='CPF inválido'; valid=false; }
       if(!vsessao) { document.getElementById('e-vsessao').textContent='Informe o valor'; valid=false; }
@@ -696,39 +649,27 @@ function renderReceitas() {
     const pac = _pacientes.find(p=>p.id===r.pacienteId);
     const pacNome = pac ? esc(pac.nome) : '<span style="color:var(--yellow)">⚠ paciente removido</span>';
     return `<tr>
-      <td>${fmtDate(r.data||r.competencia||'')}</td>
-      <td>${pacNome}</td>
-      <td>${esc(r.tipo||'—')}</td>
-      <td>${esc(r.pagamento||'—')}</td>
+      <td>${fmtDate(r.data||r.competencia||'')}</td><td>${pacNome}</td>
+      <td>${esc(r.tipo||'—')}</td><td>${esc(r.pagamento||'—')}</td>
       <td style="font-weight:600;color:var(--green)">${fmtBRL(r.valor)}</td>
       <td><span class="badge ${r.status==='pago'?'green':'yellow'}">${r.status==='pago'?'Pago':'Pendente'}</span></td>
-      <td>
-        <div style="display:flex;gap:6px">
-          <button class="btn-icon btn-edit-rec" data-id="${esc(r.id)}" title="Editar">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="btn-icon btn-del-rec" data-id="${esc(r.id)}" title="Excluir">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-          </button>
-        </div>
-      </td>
+      <td><div style="display:flex;gap:6px">
+        <button class="btn-icon btn-edit-rec" data-id="${esc(r.id)}" title="Editar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button class="btn-icon btn-del-rec" data-id="${esc(r.id)}" title="Excluir"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
+      </div></td>
     </tr>`;
   }).join('') : '<tr class="empty-row"><td colspan="7">Nenhuma receita neste mês</td></tr>';
   const total = list.reduce((a,r)=>a+(r.valor||0),0);
   const main = document.getElementById('main-content');
   main.innerHTML = `
     <div class="section-header">
-      <div class="section-title">Receitas${kpiFilter?' — '+({recebido:'Pagas',areceber:'Pendentes'}[kpiFilter]||''):''}
-        <span style="font-size:14px;font-weight:400;color:var(--text2);margin-left:12px">${fmtBRL(total)}</span>
-      </div>
+      <div class="section-title">Receitas${kpiFilter?' — '+({recebido:'Pagas',areceber:'Pendentes'}[kpiFilter]||''):''} <span style="font-size:14px;font-weight:400;color:var(--text2);margin-left:12px">${fmtBRL(total)}</span></div>
       <button class="btn btn-primary" id="btn-new-rec">+ Nova Receita</button>
     </div>
-    <div class="card">
-      <table>
-        <thead><tr><th>Data</th><th>Paciente</th><th>Tipo</th><th>Pagamento</th><th>Valor</th><th>Status</th><th></th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
+    <div class="card"><table>
+      <thead><tr><th>Data</th><th>Paciente</th><th>Tipo</th><th>Pagamento</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table></div>
   `;
   document.getElementById('btn-new-rec').addEventListener('click', () => openRecModal());
   main.querySelectorAll('.btn-edit-rec').forEach(btn => {
@@ -755,55 +696,15 @@ function openRecModal(rec=null) {
     title: isEdit ? 'Editar Receita' : 'Nova Receita',
     body: `
       <div class="form-grid">
-        <div class="field span2">
-          <label>Paciente *</label>
-          <select id="f-pac"><option value="">Selecione...</option>${pacOptions}</select>
-          <div class="field-error" id="e-pac"></div>
-        </div>
-        <div class="field">
-          <label>Tipo *</label>
-          <select id="f-tipo">
-            <option value="Plano de sessões" ${rec?.tipo==='Plano de sessões'?'selected':''}>Plano de sessões</option>
-            <option value="Sessão avulsa" ${rec?.tipo==='Sessão avulsa'?'selected':''}>Sessão avulsa</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>Nº sessões (plano)</label>
-          <input id="f-nsessoes" type="number" min="1" value="${rec?.nSessoes||4}">
-        </div>
-        <div class="field">
-          <label>Valor (R$) *</label>
-          <input id="f-valor" type="number" min="0" step="0.01" value="${rec?.valor||''}">
-          <div class="field-error" id="e-valor"></div>
-        </div>
-        <div class="field">
-          <label>Data *</label>
-          <input id="f-data" type="date" value="${rec?.data||defaultData}">
-          <div class="field-error" id="e-data"></div>
-        </div>
-        <div class="field">
-          <label>Competência (mês)</label>
-          <input id="f-comp" type="month" value="${rec?.competencia||mk}">
-        </div>
-        <div class="field">
-          <label>Forma de pagamento</label>
-          <select id="f-pgto">
-            ${['Pix','Dinheiro','Cartão de débito','Cartão de crédito','Transferência','Boleto'].map(o =>
-              `<option ${rec?.pagamento===o?'selected':''}>${o}</option>`
-            ).join('')}
-          </select>
-        </div>
-        <div class="field">
-          <label>Status</label>
-          <select id="f-status">
-            <option value="pago" ${rec?.status==='pago'||!rec?'selected':''}>Pago</option>
-            <option value="pendente" ${rec?.status==='pendente'?'selected':''}>Pendente</option>
-          </select>
-        </div>
-        <div class="field span2">
-          <label>Observação</label>
-          <input id="f-obs" value="${esc(rec?.obs||'')}" placeholder="Opcional">
-        </div>
+        <div class="field span2"><label>Paciente *</label><select id="f-pac"><option value="">Selecione...</option>${pacOptions}</select><div class="field-error" id="e-pac"></div></div>
+        <div class="field"><label>Tipo *</label><select id="f-tipo"><option value="Plano de sessões" ${rec?.tipo==='Plano de sessões'?'selected':''}>Plano de sessões</option><option value="Sessão avulsa" ${rec?.tipo==='Sessão avulsa'?'selected':''}>Sessão avulsa</option></select></div>
+        <div class="field"><label>Nº sessões (plano)</label><input id="f-nsessoes" type="number" min="1" value="${rec?.nSessoes||4}"></div>
+        <div class="field"><label>Valor (R$) *</label><input id="f-valor" type="number" min="0" step="0.01" value="${rec?.valor||''}"><div class="field-error" id="e-valor"></div></div>
+        <div class="field"><label>Data *</label><input id="f-data" type="date" value="${rec?.data||defaultData}"><div class="field-error" id="e-data"></div></div>
+        <div class="field"><label>Competência (mês)</label><input id="f-comp" type="month" value="${rec?.competencia||mk}"></div>
+        <div class="field"><label>Forma de pagamento</label><select id="f-pgto">${['Pix','Dinheiro','Cartão de débito','Cartão de crédito','Transferência','Boleto'].map(o=>`<option ${rec?.pagamento===o?'selected':''}>${o}</option>`).join('')}</select></div>
+        <div class="field"><label>Status</label><select id="f-status"><option value="pago" ${rec?.status==='pago'||!rec?'selected':''}>Pago</option><option value="pendente" ${rec?.status==='pendente'?'selected':''}>Pendente</option></select></div>
+        <div class="field span2"><label>Observação</label><input id="f-obs" value="${esc(rec?.obs||'')}" placeholder="Opcional"></div>
       </div>
     `,
     onConfirm: async () => {
@@ -857,28 +758,18 @@ function renderDespesas() {
   const bycat = {};
   list.forEach(d => { const c=d.categoria||'Outros'; bycat[c]=(bycat[c]||0)+(d.valor||0); });
   const total = list.reduce((a,d)=>a+(d.valor||0),0);
-  const catSummary = Object.entries(bycat).sort((a,b)=>b[1]-a[1]).map(([cat,val]) => `
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
-      <span style="color:var(--text2);font-size:13px">${esc(cat)}</span>
-      <span style="font-weight:600;color:var(--red)">${fmtBRL(val)}</span>
-    </div>
-  `).join('');
+  const catSummary = Object.entries(bycat).sort((a,b)=>b[1]-a[1]).map(([cat,val]) =>
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)"><span style="color:var(--text2);font-size:13px">${esc(cat)}</span><span style="font-weight:600;color:var(--red)">${fmtBRL(val)}</span></div>`
+  ).join('');
   const rows = list.length ? list.map(d => `
     <tr>
-      <td>${fmtDate(d.data||d.competencia||'')}</td>
-      <td>${esc(d.descricao||'—')}</td>
+      <td>${fmtDate(d.data||d.competencia||'')}</td><td>${esc(d.descricao||'—')}</td>
       <td><span class="badge gray">${esc(d.categoria||'—')}</span></td>
       <td style="font-weight:600;color:var(--red)">${fmtBRL(d.valor)}</td>
-      <td>
-        <div style="display:flex;gap:6px">
-          <button class="btn-icon btn-edit-desp" data-id="${esc(d.id)}" title="Editar">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="btn-icon btn-del-desp" data-id="${esc(d.id)}" title="Excluir">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-          </button>
-        </div>
-      </td>
+      <td><div style="display:flex;gap:6px">
+        <button class="btn-icon btn-edit-desp" data-id="${esc(d.id)}" title="Editar"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg></button>
+        <button class="btn-icon btn-del-desp" data-id="${esc(d.id)}" title="Excluir"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg></button>
+      </div></td>
     </tr>
   `).join('') : '<tr class="empty-row"><td colspan="5">Nenhuma despesa neste mês</td></tr>';
   const main = document.getElementById('main-content');
@@ -889,13 +780,10 @@ function renderDespesas() {
     </div>
     <div style="display:grid;grid-template-columns:1fr 280px;gap:16px;align-items:start">
       <div class="card"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>
-      <div class="card">
-        <div class="card-header"><span class="card-title">Por categoria</span></div>
-        <div style="padding:12px 16px">
-          ${catSummary || '<div style="color:var(--text3);text-align:center;padding:20px">Sem dados</div>'}
-          ${total?`<div style="display:flex;justify-content:space-between;padding:10px 0 0;font-weight:700"><span>Total</span><span style="color:var(--red)">${fmtBRL(total)}</span></div>`:''}
-        </div>
-      </div>
+      <div class="card"><div class="card-header"><span class="card-title">Por categoria</span></div><div style="padding:12px 16px">
+        ${catSummary||'<div style="color:var(--text3);text-align:center;padding:20px">Sem dados</div>'}
+        ${total?`<div style="display:flex;justify-content:space-between;padding:10px 0 0;font-weight:700"><span>Total</span><span style="color:var(--red)">${fmtBRL(total)}</span></div>`:''}
+      </div></div>
     </div>
   `;
   document.getElementById('btn-new-desp').addEventListener('click', () => openDespModal());
@@ -915,22 +803,14 @@ function renderDespesas() {
 function openDespModal(desp=null) {
   const isEdit = !!desp;
   const mk = monthKey(currentMonth);
-  const catOpts = CATEGORIAS.map(c => `<option ${desp?.categoria===c?'selected':''}>${c}</option>`).join('');
+  const catOpts = CATEGORIAS.map(c=>`<option ${desp?.categoria===c?'selected':''}>${c}</option>`).join('');
   showModal({
     title: isEdit ? 'Editar Despesa' : 'Nova Despesa',
     body: `
       <div class="form-grid">
-        <div class="field span2">
-          <label>Descrição *</label>
-          <input id="f-desc" value="${esc(desp?.descricao||'')}" placeholder="Ex: Aluguel sala">
-          <div class="field-error" id="e-desc"></div>
-        </div>
+        <div class="field span2"><label>Descrição *</label><input id="f-desc" value="${esc(desp?.descricao||'')}" placeholder="Ex: Aluguel sala"><div class="field-error" id="e-desc"></div></div>
         <div class="field"><label>Categoria *</label><select id="f-cat">${catOpts}</select></div>
-        <div class="field">
-          <label>Valor (R$) *</label>
-          <input id="f-valor" type="number" min="0" step="0.01" value="${desp?.valor||''}">
-          <div class="field-error" id="e-valor"></div>
-        </div>
+        <div class="field"><label>Valor (R$) *</label><input id="f-valor" type="number" min="0" step="0.01" value="${desp?.valor||''}"><div class="field-error" id="e-valor"></div></div>
         <div class="field"><label>Data *</label><input id="f-data" type="date" value="${desp?.data||mk+'-01'}"></div>
         <div class="field"><label>Competência</label><input id="f-comp" type="month" value="${desp?.competencia||mk}"></div>
         <div class="field span2"><label>Observação</label><input id="f-obs" value="${esc(desp?.obs||'')}" placeholder="Opcional"></div>
@@ -960,7 +840,7 @@ function openDespModal(desp=null) {
 
 const LIMITE_ISENCAO = 5000;
 
-function renderFechamento() {
+async function renderFechamento() {
   const mk = monthKey(currentMonth);
   const receitas = _receitas.filter(r=>(r.competencia||r.data||'').startsWith(mk) && r.status==='pago');
   const pacMap = {};
@@ -969,15 +849,21 @@ function renderFechamento() {
     if(!pacMap[pid]) pacMap[pid] = { valor:0 };
     pacMap[pid].valor += r.valor||0;
   });
-  const savedKey = `fc_${currentUser.uid}_${mk}`;
+
+  // Carregar alocação do Firestore
   let allocation = {};
-  try { allocation = JSON.parse(localStorage.getItem(savedKey)||'{}'); } catch(e) {}
+  try {
+    const snap = await col('fechamentos').doc(mk).get();
+    allocation = snap.data()?.allocation || {};
+  } catch(e) {}
+
   const entries = Object.entries(pacMap).map(([pid, info]) => {
     const pac = _pacientes.find(p=>p.id===pid);
     const nome = pac ? pac.nome : '(paciente removido)';
     const tipo = allocation[pid] || 'nenhum';
     return { pid, nome, valor: info.valor, tipo };
   }).sort((a,b)=>b.valor-a.valor);
+
   const totalRecibo = entries.filter(e=>e.tipo==='recibo').reduce((a,e)=>a+e.valor,0);
   const totalNF     = entries.filter(e=>e.tipo==='nf').reduce((a,e)=>a+e.valor,0);
   const pct = Math.min(100, (totalRecibo/LIMITE_ISENCAO)*100);
@@ -987,10 +873,8 @@ function renderFechamento() {
   function entryCard(e) {
     const cls = e.tipo==='recibo'?'recibo':e.tipo==='nf'?'nf':'';
     return `<div class="fc-patient ${cls}" data-pid="${esc(e.pid)}">
-      <div>
-        <div class="fc-patient-name">${esc(e.nome)}</div>
-        <div class="fc-badges"><span class="badge ${e.tipo==='recibo'?'blue':e.tipo==='nf'?'yellow':'gray'}">${e.tipo==='recibo'?'Recibo':e.tipo==='nf'?'NF':'Não alocado'}</span></div>
-      </div>
+      <div><div class="fc-patient-name">${esc(e.nome)}</div>
+      <div class="fc-badges"><span class="badge ${e.tipo==='recibo'?'blue':e.tipo==='nf'?'yellow':'gray'}">${e.tipo==='recibo'?'Recibo':e.tipo==='nf'?'NF':'Não alocado'}</span></div></div>
       <div class="fc-patient-val">${fmtBRL(e.valor)}</div>
     </div>`;
   }
@@ -1022,30 +906,11 @@ function renderFechamento() {
     <div class="fechamento-grid">
       <div class="fc-section">
         <h3>Pacientes do mês — clique para alocar</h3>
-        <div id="fc-entries">${entries.length ? entries.map(entryCard).join('') : '<div style="color:var(--text3);text-align:center;padding:24px">Nenhuma receita paga neste mês</div>'}</div>
+        <div id="fc-entries">${entries.length?entries.map(entryCard).join(''):'<div style="color:var(--text3);text-align:center;padding:24px">Nenhuma receita paga neste mês</div>'}</div>
       </div>
       <div class="fc-section"><h3>Resumo</h3><div id="fc-resumo">${renderFcResumo(entries,totalDespesas)}</div></div>
     </div>
   `;
-
-  function attachClickHandlers() {
-    document.querySelectorAll('.fc-patient').forEach(el => {
-      el.addEventListener('click', () => {
-        const pid = el.dataset.pid;
-        const e = entries.find(x=>x.pid===pid);
-        if(!e) return;
-        const cycle = {nenhum:'recibo', recibo:'nf', nf:'nenhum'};
-        e.tipo = cycle[e.tipo]||'nenhum';
-        allocation[pid] = e.tipo;
-        localStorage.setItem(savedKey, JSON.stringify(allocation));
-        el.className = `fc-patient ${e.tipo==='recibo'?'recibo':e.tipo==='nf'?'nf':''}`;
-        el.querySelector('.badge').className = `badge ${e.tipo==='recibo'?'blue':e.tipo==='nf'?'yellow':'gray'}`;
-        el.querySelector('.badge').textContent = e.tipo==='recibo'?'Recibo':e.tipo==='nf'?'NF':'Não alocado';
-        updateFcProgress();
-        document.getElementById('fc-resumo').innerHTML = renderFcResumo(entries,totalDespesas);
-      });
-    });
-  }
 
   function updateFcProgress() {
     const rec = entries.filter(e=>e.tipo==='recibo').reduce((a,e)=>a+e.valor,0);
@@ -1056,20 +921,39 @@ function renderFechamento() {
     if(rt) rt.textContent = fmtBRL(rec);
   }
 
-  attachClickHandlers();
+  function attachCardHandlers() {
+    document.querySelectorAll('.fc-patient').forEach(el => {
+      el.addEventListener('click', () => {
+        const pid = el.dataset.pid;
+        const e = entries.find(x=>x.pid===pid);
+        if(!e) return;
+        const cycle = {nenhum:'recibo', recibo:'nf', nf:'nenhum'};
+        e.tipo = cycle[e.tipo]||'nenhum';
+        allocation[pid] = e.tipo;
+        col('fechamentos').doc(mk).set({ allocation }, { merge:true });
+        el.className = `fc-patient ${e.tipo==='recibo'?'recibo':e.tipo==='nf'?'nf':''}`;
+        el.querySelector('.badge').className = `badge ${e.tipo==='recibo'?'blue':e.tipo==='nf'?'yellow':'gray'}`;
+        el.querySelector('.badge').textContent = e.tipo==='recibo'?'Recibo':e.tipo==='nf'?'NF':'Não alocado';
+        updateFcProgress();
+        document.getElementById('fc-resumo').innerHTML = renderFcResumo(entries,totalDespesas);
+      });
+    });
+  }
 
-  document.getElementById('btn-auto-suggest').addEventListener('click', () => {
+  attachCardHandlers();
+
+  document.getElementById('btn-auto-suggest').addEventListener('click', async () => {
     let remaining = LIMITE_ISENCAO;
     entries.sort((a,b)=>b.valor-a.valor).forEach(e => {
-      if(e.valor <= remaining) { e.tipo='recibo'; remaining-=e.valor; }
-      else { e.tipo='nf'; }
+      e.tipo = e.valor <= remaining ? 'recibo' : 'nf';
+      if(e.tipo==='recibo') remaining -= e.valor;
       allocation[e.pid] = e.tipo;
     });
-    localStorage.setItem(savedKey, JSON.stringify(allocation));
+    await col('fechamentos').doc(mk).set({ allocation }, { merge:true });
     document.getElementById('fc-entries').innerHTML = entries.map(entryCard).join('');
     document.getElementById('fc-resumo').innerHTML = renderFcResumo(entries,totalDespesas);
     updateFcProgress();
-    attachClickHandlers();
+    attachCardHandlers();
     toast('Alocação sugerida aplicada','success');
   });
 
@@ -1090,25 +974,16 @@ function renderFcResumo(entries, totalDespesas) {
     <div style="margin-bottom:16px">
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Recibo (Isenção)</div>
       ${list(recEntries,'var(--accent2)')}
-      <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;display:flex;justify-content:space-between;font-weight:600;font-size:13px">
-        <span>Total Recibo</span><span style="color:var(--accent2)">${fmtBRL(totalRec)}</span>
-      </div>
+      <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;display:flex;justify-content:space-between;font-weight:600;font-size:13px"><span>Total Recibo</span><span style="color:var(--accent2)">${fmtBRL(totalRec)}</span></div>
     </div>
     <div style="margin-bottom:16px">
       <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px">Nota Fiscal</div>
       ${list(nfEntries,'var(--yellow)')}
-      <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;display:flex;justify-content:space-between;font-weight:600;font-size:13px">
-        <span>Total NF</span><span style="color:var(--yellow)">${fmtBRL(totalNF)}</span>
-      </div>
+      <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;display:flex;justify-content:space-between;font-weight:600;font-size:13px"><span>Total NF</span><span style="color:var(--yellow)">${fmtBRL(totalNF)}</span></div>
     </div>
     <div style="border-top:2px solid var(--border);padding-top:12px">
-      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);margin-bottom:4px">
-        <span>Despesas do mês</span><span style="color:var(--red)">${fmtBRL(totalDespesas)}</span>
-      </div>
-      <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700">
-        <span>Saldo Recibos - Despesas</span>
-        <span style="color:${saldoRec>=0?'var(--green)':'var(--red)'}">${fmtBRL(saldoRec)}</span>
-      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);margin-bottom:4px"><span>Despesas do mês</span><span style="color:var(--red)">${fmtBRL(totalDespesas)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700"><span>Saldo Recibos - Despesas</span><span style="color:${saldoRec>=0?'var(--green)':'var(--red)'}">${fmtBRL(saldoRec)}</span></div>
     </div>
   `;
 }
@@ -1137,9 +1012,7 @@ function exportPDF(entries, totalDespesas, mk) {
       <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span>Total Recibos</span><strong style="color:#2563eb">${fmtBRL(totalRec)}</strong></div>
       <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span>Total NF</span><strong style="color:#f59e0b">${fmtBRL(totalNF)}</strong></div>
       <div style="display:flex;justify-content:space-between;margin-bottom:8px"><span>Despesas</span><strong style="color:#ef4444">${fmtBRL(totalDespesas)}</strong></div>
-      <div style="display:flex;justify-content:space-between;border-top:2px solid #e5e7eb;padding-top:8px;font-size:15px">
-        <strong>Saldo</strong><strong style="color:${(totalRec-totalDespesas)>=0?'#10b981':'#ef4444'}">${fmtBRL(totalRec-totalDespesas)}</strong>
-      </div>
+      <div style="display:flex;justify-content:space-between;border-top:2px solid #e5e7eb;padding-top:8px;font-size:15px"><strong>Saldo</strong><strong style="color:${(totalRec-totalDespesas)>=0?'#10b981':'#ef4444'}">${fmtBRL(totalRec-totalDespesas)}</strong></div>
     </div>
     <p style="font-size:11px;color:#999;margin-top:24px">Gerado em ${new Date().toLocaleDateString('pt-BR')} — Finanças Consultório</p>
   </div>`;
@@ -1147,7 +1020,7 @@ function exportPDF(entries, totalDespesas, mk) {
   el.innerHTML = html;
   document.body.appendChild(el);
   html2pdf().set({ margin:8, filename:`fechamento_${mk}.pdf`, image:{type:'jpeg',quality:.95}, html2canvas:{scale:2}, jsPDF:{unit:'mm',format:'a4',orientation:'portrait'} })
-    .from(el).save().then(() => { document.body.removeChild(el); toast('PDF gerado','success'); });
+    .from(el).save().then(() => { document.body.removeChild(el); toast('PDF gerado com sucesso','success'); });
 }
 
 function exportCSV(entries, mk) {
@@ -1160,7 +1033,7 @@ function exportCSV(entries, mk) {
     ...entries.map(e => [e.nome, e.tipo==='recibo'?'Recibo':e.tipo==='nf'?'Nota Fiscal':'Não alocado', String(e.valor).replace('.',',')]),
     [],
     ['Total Recibos', '', String(entries.filter(e=>e.tipo==='recibo').reduce((a,e)=>a+e.valor,0)).replace('.',',')],
-    ['Total NF', '', String(entries.filter(e=>e.tipo==='nf').reduce((a,e)=>a+e.valor,0)).replace('.',',')],
+    ['Total NF',      '', String(entries.filter(e=>e.tipo==='nf').reduce((a,e)=>a+e.valor,0)).replace('.',',')],
   ];
   const csv = rows.map(r => r.map(csvEsc).join(';')).join('\r\n');
   const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8;'});
@@ -1169,7 +1042,7 @@ function exportCSV(entries, mk) {
   a.href = url; a.download = `fechamento_${mk}.csv`;
   document.body.appendChild(a); a.click();
   document.body.removeChild(a); URL.revokeObjectURL(url);
-  toast('CSV exportado','success');
+  toast('CSV exportado com sucesso','success');
 }
 
 let _modalConfirm = null;
