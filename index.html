@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Finanças Consultório</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a0e1a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Finanças">
+<link rel="apple-touch-icon" href="icon.svg">
 
 <!-- Firebase CDN -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -270,13 +277,60 @@ tr:hover td { background:rgba(255,255,255,.02); }
 .spinner { width:20px; height:20px; border:2px solid var(--border); border-top-color:var(--accent2); border-radius:50%; animation:spin .6s linear infinite; }
 @keyframes spin { to{transform:rotate(360deg)} }
 
+/* ── Mobile bottom nav ── */
+.bottom-nav {
+  display:none; position:fixed; bottom:0; left:0; right:0;
+  background:var(--surface); border-top:1px solid var(--border);
+  padding:6px 0; padding-bottom:max(6px, env(safe-area-inset-bottom));
+  z-index:50;
+}
+.bottom-nav-items { display:flex; }
+.bottom-nav-item {
+  flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+  padding:6px 4px; cursor:pointer; color:var(--text3); transition:.15s;
+  font-size:10px; font-weight:500; user-select:none;
+}
+.bottom-nav-item.active { color:var(--accent2); }
+.bottom-nav-item svg { width:20px; height:20px; }
+
 /* Responsive */
 @media(max-width:768px) {
   .sidebar { display:none; }
-  .kpi-grid { grid-template-columns:1fr 1fr; }
+  .bottom-nav { display:block; }
+  .main { padding:16px; padding-bottom:84px; }
+
+  .topbar { padding:0 12px; gap:8px; height:52px; }
+  .topbar-user { display:none; }
+  .topbar-brand { font-size:14px; }
+  .month-nav button { width:26px; height:26px; }
+  .month-label { min-width:80px; font-size:12px; }
+  .btn-logout { padding:5px 10px; }
+
+  .kpi-grid { grid-template-columns:1fr 1fr; gap:12px; }
+  .kpi-card { padding:14px; }
+  .kpi-value { font-size:20px; }
+  .kpi-label { font-size:10px; }
+
   .fechamento-grid { grid-template-columns:1fr; }
   .form-grid { grid-template-columns:1fr; }
   .form-grid .span2 { grid-column:span 1; }
+
+  .card { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+  table { min-width:480px; }
+
+  .filter-row { flex-direction:column; align-items:stretch; }
+  .filter-row input { min-width:0; width:100%; }
+  .filter-row select { width:100%; }
+
+  .section-header { flex-wrap:wrap; gap:10px; }
+
+  .modal-overlay { align-items:flex-end; padding:0; }
+  .modal { max-width:100%; border-radius:16px 16px 0 0; max-height:88vh; }
+
+  .auth-box { width:calc(100vw - 32px); padding:28px 20px; }
+
+  .toast-container { top:auto; bottom:84px; right:12px; left:12px; }
+  .toast { max-width:100%; }
 }
 </style>
 </head>
@@ -310,7 +364,7 @@ tr:hover td { background:rgba(255,255,255,.02); }
 <!-- APP -->
 <div id="app">
   <div class="topbar">
-    <div class="topbar-brand">Finanças <span>Consultório</span></div>
+    <div class="topbar-brand" id="topbar-brand" style="cursor:pointer;user-select:none">Finanças <span>Consultório</span></div>
     <div class="topbar-right">
       <div class="month-nav">
         <button id="prev-month">&#8249;</button>
@@ -350,6 +404,32 @@ tr:hover td { background:rgba(255,255,255,.02); }
       <div class="loading"><div class="spinner"></div> Carregando...</div>
     </main>
   </div>
+
+  <!-- Mobile bottom navigation -->
+  <nav class="bottom-nav" id="bottom-nav">
+    <div class="bottom-nav-items">
+      <div class="bottom-nav-item active" data-view="dashboard">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Dashboard
+      </div>
+      <div class="bottom-nav-item" data-view="pacientes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Pacientes
+      </div>
+      <div class="bottom-nav-item" data-view="receitas">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        Receitas
+      </div>
+      <div class="bottom-nav-item" data-view="despesas">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        Despesas
+      </div>
+      <div class="bottom-nav-item" data-view="fechamento">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+        Fechamento
+      </div>
+    </div>
+  </nav>
 </div>
 
 <!-- Toast container -->
@@ -503,16 +583,19 @@ auth.onAuthStateChanged(user => {
 // ── Navigation ───────────────────────────────────────────────
 function initNav() {
   document.querySelectorAll('.nav-item').forEach(el => {
-    el.addEventListener('click', () => {
-      kpiFilter = null;
-      showView(el.dataset.view);
-    });
+    el.addEventListener('click', () => { kpiFilter = null; showView(el.dataset.view); });
+  });
+  document.querySelectorAll('.bottom-nav-item').forEach(el => {
+    el.addEventListener('click', () => { kpiFilter = null; showView(el.dataset.view); });
+  });
+  document.getElementById('topbar-brand').addEventListener('click', () => {
+    kpiFilter = null; showView('dashboard');
   });
 }
 
 function showView(view) {
   currentView = view;
-  document.querySelectorAll('.nav-item').forEach(el => {
+  document.querySelectorAll('.nav-item,.bottom-nav-item').forEach(el => {
     el.classList.toggle('active', el.dataset.view === view);
   });
   refreshView();
@@ -1484,6 +1567,11 @@ function showConfirm(msg, onYes) {
     overlay.classList.remove('open');
     onYes();
   });
+}
+
+// ── Service Worker (PWA) ─────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/financasconsultorio/sw.js').catch(() => {});
 }
 </script>
 </body>
