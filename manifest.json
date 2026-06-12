@@ -1,0 +1,26 @@
+{
+  "name": "Finanças Consultório",
+  "short_name": "Finanças",
+  "description": "Gestão financeira para consultório de psicologia",
+  "start_url": "/financasconsultorio/",
+  "scope": "/financasconsultorio/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0a0e1a",
+  "theme_color": "#0a0e1a",
+  "lang": "pt-BR",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
