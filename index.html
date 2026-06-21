@@ -369,6 +369,7 @@ tr:hover td { background:rgba(255,255,255,.02); }
         <span class="month-label" id="month-label"></span>
         <button id="next-month">&#8250;</button>
       </div>
+      <button id="btn-filter-mode" title="Alternar filtro de mês" style="background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;white-space:nowrap;transition:.2s">Por Pgto</button>
       <span class="topbar-user" id="user-email-display"></span>
       <button class="btn-logout" id="btn-logout">Sair</button>
     </div>
@@ -494,6 +495,7 @@ let currentUser = null;
 let currentView = 'dashboard';
 let currentMonth = new Date(); currentMonth.setDate(1);
 let kpiFilter = null;
+let filterMode = 'data'; // 'data' = por data de pagamento (padrão), 'competencia' = por competência
 
 // Cached data (refreshed on view change)
 let _pacientes = [];
@@ -519,6 +521,14 @@ document.getElementById('prev-month').addEventListener('click', () => {
 document.getElementById('next-month').addEventListener('click', () => {
   currentMonth.setMonth(currentMonth.getMonth()+1);
   updateMonthLabel(); refreshView();
+});
+document.getElementById('btn-filter-mode').addEventListener('click', () => {
+  filterMode = filterMode === 'data' ? 'competencia' : 'data';
+  const btn = document.getElementById('btn-filter-mode');
+  btn.textContent = filterMode === 'data' ? 'Por Pgto' : 'Por Comp.';
+  btn.style.color = filterMode === 'competencia' ? 'var(--accent2)' : 'var(--text2)';
+  btn.style.borderColor = filterMode === 'competencia' ? 'var(--accent2)' : 'var(--border)';
+  refreshView();
 });
 
 // ── Firestore helpers ────────────────────────────────────────
@@ -615,8 +625,8 @@ async function refreshView() {
 // ── DASHBOARD ────────────────────────────────────────────────
 function getMonthData() {
   const mk = monthKey(currentMonth);
-  const receitas = _receitas.filter(r => (r.competencia||r.data||'').startsWith(mk));
-  const despesas = _despesas.filter(d => (d.competencia||d.data||'').startsWith(mk));
+  const receitas = _receitas.filter(r => (filterMode==='data' ? (r.data||'') : (r.competencia||r.data||'')).startsWith(mk));
+  const despesas = _despesas.filter(d => (filterMode==='data' ? (d.data||'') : (d.competencia||d.data||'')).startsWith(mk));
   const recebido = receitas.filter(r=>r.status==='pago').reduce((a,r)=>a+(r.valor||0),0);
   const aReceber = receitas.filter(r=>r.status==='pendente').reduce((a,r)=>a+(r.valor||0),0);
   const totalDespesas = despesas.reduce((a,d)=>a+(d.valor||0),0);
@@ -837,7 +847,7 @@ async function confirmDeletePac(id, nome) {
 // ── RECEITAS ─────────────────────────────────────────────────
 function renderReceitas() {
   const mk = monthKey(currentMonth);
-  let list = _receitas.filter(r => (r.competencia||r.data||'').startsWith(mk));
+  let list = _receitas.filter(r => (filterMode==='data' ? (r.data||'') : (r.competencia||r.data||'')).startsWith(mk));
 
   if(kpiFilter==='recebido') list = list.filter(r=>r.status==='pago');
   if(kpiFilter==='areceber') list = list.filter(r=>r.status==='pendente');
@@ -1030,7 +1040,7 @@ const CATEGORIAS = ['Aluguel','Prontuário','Cursos e capacitações','CRP','Ali
 
 function renderDespesas() {
   const mk = monthKey(currentMonth);
-  const list = _despesas.filter(d=>(d.competencia||d.data||'').startsWith(mk))
+  const list = _despesas.filter(d=>(filterMode==='data' ? (d.data||'') : (d.competencia||d.data||'')).startsWith(mk))
     .sort((a,b)=>(b.data||'').localeCompare(a.data||''));
 
   // Group by category
@@ -1180,7 +1190,7 @@ const LIMITE_ISENCAO = 5000;
 
 async function renderFechamento() {
   const mk = monthKey(currentMonth);
-  const receitas = _receitas.filter(r=>(r.competencia||r.data||'').startsWith(mk) && r.status==='pago');
+  const receitas = _receitas.filter(r=>(filterMode==='data' ? (r.data||'') : (r.competencia||r.data||'')).startsWith(mk) && r.status==='pago');
 
   // Build patient summary
   const pacMap = {};
