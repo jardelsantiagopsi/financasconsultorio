@@ -510,6 +510,7 @@ let kpiFilter = null;
 let filterMode = 'data'; // 'data' = por data de pagamento (padrão), 'competencia' = por competência
 let _chartInstances = {};
 let analiseYear = new Date().getFullYear();
+let analiseMonths = new Set([1,2,3,4,5,6,7,8,9,10,11,12]);
 
 // Cached data (refreshed on view change)
 let _pacientes = [];
@@ -1640,12 +1641,24 @@ function renderAnalise() {
   const modeColor = filterMode === 'competencia' ? 'var(--accent2)' : 'var(--text2)';
   const modeBorder = filterMode === 'competencia' ? 'var(--accent2)' : 'var(--border)';
 
+  const MESES_ABREV = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const mesChips = MESES_ABREV.map((m, i) => {
+    const on = analiseMonths.has(i + 1);
+    return `<button class="mes-chip" data-mes="${i+1}" style="background:${on?'var(--accent)':'var(--surface2)'};border:1px solid ${on?'var(--accent)':'var(--border)'};color:${on?'#fff':'var(--text2)'};border-radius:16px;padding:3px 10px;font-size:11px;cursor:pointer;transition:.15s">${m}</button>`;
+  }).join('');
+
   main.innerHTML = `
     <div style="padding:16px 20px 80px">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;flex-wrap:wrap">
         <h2 style="margin:0;font-size:18px;font-weight:700">Análise Geral</h2>
         <select id="analise-year" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:4px 10px;font-size:13px;cursor:pointer">${yearOptions}</select>
         <button id="analise-mode" style="background:var(--surface2);border:1px solid ${modeBorder};color:${modeColor};border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;white-space:nowrap">${modeLabel}</button>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:20px;align-items:center">
+        <span style="font-size:11px;color:var(--text3);margin-right:2px">Meses:</span>
+        ${mesChips}
+        <button id="analise-todos" style="background:transparent;border:none;color:var(--accent2);font-size:11px;cursor:pointer;padding:3px 6px">Todos</button>
+        <button id="analise-nenhum" style="background:transparent;border:none;color:var(--text3);font-size:11px;cursor:pointer;padding:3px 6px">Limpar</button>
       </div>
 
       <!-- Evolução mensal — full width -->
@@ -1692,16 +1705,39 @@ function renderAnalise() {
     renderAnalise();
   });
 
+  document.getElementById('analise-todos').addEventListener('click', () => {
+    analiseMonths = new Set([1,2,3,4,5,6,7,8,9,10,11,12]);
+    renderAnalise();
+  });
+
+  document.getElementById('analise-nenhum').addEventListener('click', () => {
+    analiseMonths = new Set([new Date().getMonth() + 1]); // keep at least current month
+    renderAnalise();
+  });
+
+  document.querySelectorAll('.mes-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const m = parseInt(btn.dataset.mes);
+      if (analiseMonths.has(m)) {
+        if (analiseMonths.size > 1) analiseMonths.delete(m);
+      } else {
+        analiseMonths.add(m);
+      }
+      renderAnalise();
+    });
+  });
+
   drawAnaliseCharts();
 }
 
 function drawAnaliseCharts() {
   const yr = String(analiseYear);
   const field = r => filterMode === 'data' ? (r.data || '') : (r.competencia || r.data || '');
+  const inPeriod = r => { const f = field(r); return f.startsWith(yr) && analiseMonths.has(parseInt(f.slice(5,7))); };
 
-  const receitasAno = _receitas.filter(r => field(r).startsWith(yr));
-  const despesasAno = _despesas.filter(d => field(d).startsWith(yr));
-  const receitasPagas = receitasAno.filter(r => r.status === 'pago');
+  const receitasPeriodo = _receitas.filter(inPeriod);
+  const despesasPeriodo = _despesas.filter(inPeriod);
+  const receitasPagas   = receitasPeriodo.filter(r => r.status === 'pago');
 
   const CHART_COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#f97316','#06b6d4','#ec4899'];
   const mkChart = (id, config) => {
@@ -1711,15 +1747,16 @@ function drawAnaliseCharts() {
     _chartInstances[id] = new Chart(ctx, config);
   };
 
-  // a) Evolução mensal
-  const months = Array.from({length:12}, (_,i) => String(i+1).padStart(2,'0'));
-  const recMes = months.map(m => receitasPagas.filter(r=>field(r).startsWith(`${yr}-${m}`)).reduce((a,r)=>a+r.valor,0));
-  const despMes = months.map(m => despesasAno.filter(d=>field(d).startsWith(`${yr}-${m}`)).reduce((a,d)=>a+d.valor,0));
+  // a) Evolução mensal — only selected months on X axis
+  const selMonths = Array.from(analiseMonths).sort((a,b)=>a-b);
+  const selPadded = selMonths.map(m => String(m).padStart(2,'0'));
+  const recMes   = selPadded.map(m => _receitas.filter(r=>field(r).startsWith(`${yr}-${m}`)&&r.status==='pago').reduce((a,r)=>a+r.valor,0));
+  const despMes  = selPadded.map(m => _despesas.filter(d=>field(d).startsWith(`${yr}-${m}`)).reduce((a,d)=>a+d.valor,0));
   const saldoMes = recMes.map((r,i) => r - despMes[i]);
   mkChart('ch-evolucao', {
     type: 'bar',
     data: {
-      labels: MONTHS_PT,
+      labels: selMonths.map(m => MONTHS_PT[m-1]),
       datasets: [
         { label: 'Receitas', data: recMes, backgroundColor: 'rgba(16,185,129,0.7)', order: 2 },
         { label: 'Despesas', data: despMes, backgroundColor: 'rgba(239,68,68,0.7)', order: 2 },
@@ -1731,7 +1768,7 @@ function drawAnaliseCharts() {
 
   // b) Despesas por categoria
   const catMap = {};
-  despesasAno.forEach(d => { catMap[d.categoria||'Outros'] = (catMap[d.categoria||'Outros']||0) + d.valor; });
+  despesasPeriodo.forEach(d => { catMap[d.categoria||'Outros'] = (catMap[d.categoria||'Outros']||0) + d.valor; });
   const catKeys = Object.keys(catMap);
   mkChart('ch-categorias', {
     type: 'doughnut',
@@ -1761,7 +1798,7 @@ function drawAnaliseCharts() {
   });
 
   // e) Valor da sessão por paciente
-  const pacComReceita = new Set(receitasAno.map(r=>r.pacienteId));
+  const pacComReceita = new Set(receitasPeriodo.map(r=>r.pacienteId));
   const sessoesPac = _pacientes.filter(p=>pacComReceita.has(p.id) && p.valorSessao>0)
     .sort((a,b)=>b.valorSessao-a.valorSessao);
   mkChart('ch-sessoes', {
