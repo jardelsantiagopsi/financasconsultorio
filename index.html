@@ -1218,7 +1218,7 @@ async function renderFechamento() {
   const totalRecibo = entries.filter(e=>e.tipo==='recibo').reduce((a,e)=>a+e.valor,0);
   const totalNF     = entries.filter(e=>e.tipo==='nf').reduce((a,e)=>a+e.valor,0);
   const pct = Math.min(100, (totalRecibo/LIMITE_ISENCAO)*100);
-  const barCls = pct>=100?'red':pct>=80?'orange':'green';
+  const barCls = pct>=85?'red':pct>=80?'orange':'green';
 
   const totalDespesas = _despesas.filter(d=>(d.competencia||d.data||'').startsWith(mk)).reduce((a,d)=>a+(d.valor||0),0);
 
@@ -1305,7 +1305,7 @@ async function renderFechamento() {
     const rec = entries.filter(e=>e.tipo==='recibo').reduce((a,e)=>a+e.valor,0);
     const p   = Math.min(100,(rec/LIMITE_ISENCAO)*100);
     const bar = document.getElementById('fc-progress');
-    if(bar) { bar.style.width=p+'%'; bar.className=`progress-bar ${p>=100?'red':p>=80?'orange':'green'}`; }
+    if(bar) { bar.style.width=p+'%'; bar.className=`progress-bar ${p>=85?'red':p>=80?'orange':'green'}`; }
     const rt = document.getElementById('fc-recibo-total');
     if(rt) rt.textContent = fmtBRL(rec);
   }
