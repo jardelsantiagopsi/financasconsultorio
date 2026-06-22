@@ -38,6 +38,7 @@
   --red-bg: rgba(239,68,68,0.12);
   --yellow: #f59e0b;
   --yellow-bg: rgba(245,158,11,0.12);
+  --orange: #f97316;
   --radius: 12px;
   --radius-sm: 8px;
 }
@@ -224,7 +225,7 @@ tr:hover td { background:rgba(255,255,255,.02); }
 .progress-wrap { background:var(--surface2); border-radius:99px; height:8px; overflow:hidden; }
 .progress-bar { height:100%; border-radius:99px; transition:width .4s; }
 .progress-bar.green { background:var(--green); }
-.progress-bar.yellow { background:var(--yellow); }
+.progress-bar.orange { background:var(--orange); }
 .progress-bar.red { background:var(--red); }
 
 /* Fechamento */
@@ -1217,7 +1218,7 @@ async function renderFechamento() {
   const totalRecibo = entries.filter(e=>e.tipo==='recibo').reduce((a,e)=>a+e.valor,0);
   const totalNF     = entries.filter(e=>e.tipo==='nf').reduce((a,e)=>a+e.valor,0);
   const pct = Math.min(100, (totalRecibo/LIMITE_ISENCAO)*100);
-  const barCls = pct>=100?'red':pct>=80?'yellow':'green';
+  const barCls = pct>=100?'red':pct>=80?'orange':'green';
 
   const totalDespesas = _despesas.filter(d=>(d.competencia||d.data||'').startsWith(mk)).reduce((a,d)=>a+(d.valor||0),0);
 
@@ -1304,7 +1305,7 @@ async function renderFechamento() {
     const rec = entries.filter(e=>e.tipo==='recibo').reduce((a,e)=>a+e.valor,0);
     const p   = Math.min(100,(rec/LIMITE_ISENCAO)*100);
     const bar = document.getElementById('fc-progress');
-    if(bar) { bar.style.width=p+'%'; bar.className=`progress-bar ${p>=100?'red':p>=80?'yellow':'green'}`; }
+    if(bar) { bar.style.width=p+'%'; bar.className=`progress-bar ${p>=100?'red':p>=80?'orange':'green'}`; }
     const rt = document.getElementById('fc-recibo-total');
     if(rt) rt.textContent = fmtBRL(rec);
   }
@@ -1332,12 +1333,36 @@ async function renderFechamento() {
   attachCardHandlers();
 
   document.getElementById('btn-auto-suggest').addEventListener('click', async () => {
-    let remaining = LIMITE_ISENCAO;
-    entries.sort((a,b)=>b.valor-a.valor).forEach(e => {
-      e.tipo = e.valor <= remaining ? 'recibo' : 'nf';
-      if(e.tipo==='recibo') remaining -= e.valor;
-      allocation[e.pid] = e.tipo;
-    });
+    // Optimal 0/1 knapsack: maximize total recibo without exceeding LIMITE_ISENCAO
+    const n = entries.length;
+    const limit = LIMITE_ISENCAO;
+    let selected;
+    if (n <= 22) {
+      // Bitmask enumeration — exact optimal solution
+      let bestSum = 0, bestMask = 0;
+      for (let mask = 0; mask < (1 << n); mask++) {
+        let sum = 0;
+        for (let i = 0; i < n; i++) { if (mask & (1 << i)) sum += entries[i].valor; }
+        if (sum <= limit && sum > bestSum) { bestSum = sum; bestMask = mask; }
+      }
+      selected = entries.map((_, i) => !!(bestMask & (1 << i)));
+    } else {
+      // DP knapsack fallback for large n
+      const cap = Math.round(limit * 100);
+      const vals = entries.map(e => Math.round(e.valor * 100));
+      const dp = new Int32Array(cap + 1);
+      for (let i = 0; i < n; i++) {
+        const v = vals[i];
+        for (let j = cap; j >= v; j--) { if (dp[j-v] + v > dp[j]) dp[j] = dp[j-v] + v; }
+      }
+      selected = new Array(n).fill(false);
+      let rem = cap;
+      for (let i = n - 1; i >= 0; i--) {
+        const v = vals[i];
+        if (rem >= v && dp[rem] - v === dp[rem - v]) { selected[i] = true; rem -= v; }
+      }
+    }
+    entries.forEach((e, i) => { e.tipo = selected[i] ? 'recibo' : 'nf'; allocation[e.pid] = e.tipo; });
     await col('fechamentos').doc(mk).set({ allocation }, { merge:true });
     document.getElementById('fc-entries').innerHTML = entries.map(entryCard).join('');
     document.getElementById('fc-resumo').innerHTML = renderFcResumo(entries, totalDespesas);
