@@ -1380,7 +1380,9 @@ function renderFcResumo(entries, totalDespesas) {
   const nfEntries  = entries.filter(e=>e.tipo==='nf');
   const totalRec   = recEntries.reduce((a,e)=>a+e.valor,0);
   const totalNF    = nfEntries.reduce((a,e)=>a+e.valor,0);
-  const saldoRec   = totalRec - totalDespesas;
+  const saldoRec      = totalRec - totalDespesas;
+  const totalEntradas = totalRec + totalNF;
+  const saldoLiquido  = totalEntradas - totalDespesas;
 
   const list = (arr, cor) => arr.length
     ? arr.map(e=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px"><span>${esc(e.nome)}</span><span style="color:${cor}">${fmtBRL(e.valor)}</span></div>`).join('')
@@ -1402,10 +1404,18 @@ function renderFcResumo(entries, totalDespesas) {
       </div>
     </div>
     <div style="border-top:2px solid var(--border);padding-top:12px">
-      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);margin-bottom:4px">
+      <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;margin-bottom:8px">
+        <span>Total de Entradas</span>
+        <span style="color:var(--green)">${fmtBRL(totalEntradas)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);margin-bottom:8px">
         <span>Despesas do mês</span><span style="color:var(--red)">${fmtBRL(totalDespesas)}</span>
       </div>
-      <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700">
+      <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;border-top:1px solid var(--border);padding-top:8px;margin-bottom:4px">
+        <span>Resultado do Mês</span>
+        <span style="color:${saldoLiquido>=0?'var(--green)':'var(--red)'}">${fmtBRL(saldoLiquido)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text3)">
         <span>Saldo Recibos - Despesas</span>
         <span style="color:${saldoRec>=0?'var(--green)':'var(--red)'}">${fmtBRL(saldoRec)}</span>
       </div>
