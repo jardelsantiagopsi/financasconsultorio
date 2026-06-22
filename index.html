@@ -374,6 +374,9 @@ tr:hover td { background:rgba(255,255,255,.02); }
         <button id="next-month">&#8250;</button>
       </div>
       <button id="btn-filter-mode" title="Alternar filtro de mês" style="background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 10px;font-size:11px;cursor:pointer;white-space:nowrap;transition:.2s">Por Pgto</button>
+      <button id="btn-hide-values" title="Ocultar informações" style="background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:4px 7px;font-size:13px;cursor:pointer;line-height:1;transition:.2s;display:flex;align-items:center">
+        <svg id="icon-eye" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
       <span class="topbar-user" id="user-email-display"></span>
       <button class="btn-logout" id="btn-logout">Sair</button>
     </div>
@@ -468,7 +471,8 @@ const db   = firebase.firestore();
 
 // ── Helpers ──────────────────────────────────────────────────
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-const fmtBRL = v => new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v||0);
+const fmtBRL  = v => hideValues ? 'R$ ••••' : new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v||0);
+const fmtNome = s => hideValues ? '••••••••' : (s || '');
 const fmtDate = s => s ? s.split('-').reverse().join('/') : '';
 const uid = () => crypto.randomUUID();
 
@@ -508,6 +512,7 @@ let currentView = 'dashboard';
 let currentMonth = new Date(); currentMonth.setDate(1);
 let kpiFilter = null;
 let filterMode = 'data'; // 'data' = por data de pagamento (padrão), 'competencia' = por competência
+let hideValues = false;
 let _chartInstances = {};
 let analiseYear = new Date().getFullYear();
 let analiseMonths = new Set([1,2,3,4,5,6,7,8,9,10,11,12]);
@@ -543,6 +548,16 @@ document.getElementById('btn-filter-mode').addEventListener('click', () => {
   btn.textContent = filterMode === 'data' ? 'Por Pgto' : 'Por Comp.';
   btn.style.color = filterMode === 'competencia' ? 'var(--accent2)' : 'var(--text2)';
   btn.style.borderColor = filterMode === 'competencia' ? 'var(--accent2)' : 'var(--border)';
+  refreshView();
+});
+document.getElementById('btn-hide-values').addEventListener('click', () => {
+  hideValues = !hideValues;
+  const btn = document.getElementById('btn-hide-values');
+  btn.style.color = hideValues ? 'var(--accent2)' : 'var(--text2)';
+  btn.style.borderColor = hideValues ? 'var(--accent2)' : 'var(--border)';
+  btn.querySelector('svg').innerHTML = hideValues
+    ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+    : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
   refreshView();
 });
 
@@ -677,7 +692,7 @@ function renderDashboard() {
 
   const recentHTML = recent.length ? recent.map(item => {
     const pac = item._type==='receita' ? _pacientes.find(p=>p.id===item.pacienteId) : null;
-    const name = item._type==='receita' ? (pac?esc(pac.nome):'<span style="color:var(--text3)">(paciente removido)</span>') : esc(item.categoria||'—');
+    const name = item._type==='receita' ? (pac?esc(fmtNome(pac.nome)):'<span style="color:var(--text3)">(paciente removido)</span>') : esc(item.categoria||'—');
     return `<tr>
       <td>${fmtDate(item.data||item.competencia||'')}</td>
       <td>${name}</td>
@@ -719,7 +734,7 @@ function renderPacientes() {
 
   const rows = list.length ? list.map(p => `
     <tr>
-      <td>${esc(p.nome)}</td>
+      <td>${esc(fmtNome(p.nome))}</td>
       <td>${esc(p.cpf||'—')}</td>
       <td>${esc(p.email||'—')}</td>
       <td>${fmtBRL(p.valorSessao)}</td>
@@ -872,7 +887,7 @@ function renderReceitas() {
 
   const rows = list.length ? list.map(r => {
     const pac = _pacientes.find(p=>p.id===r.pacienteId);
-    const pacNome = pac ? esc(pac.nome) : '<span style="color:var(--yellow)">⚠ paciente removido</span>';
+    const pacNome = pac ? esc(fmtNome(pac.nome)) : '<span style="color:var(--yellow)">⚠ paciente removido</span>';
     return `<tr>
       <td>${fmtDate(r.data||r.competencia||'')}</td>
       <td>${pacNome}</td>
@@ -1225,7 +1240,7 @@ async function renderFechamento() {
 
   const entries = Object.entries(pacMap).map(([pid, info]) => {
     const pac = _pacientes.find(p=>p.id===pid);
-    const nome = pac ? pac.nome : '(paciente removido)';
+    const nome = pac ? fmtNome(pac.nome) : '(paciente removido)';
     const tipo = allocation[pid] || 'nenhum';
     return { pid, nome, valor: info.valor, tipo };
   }).sort((a,b)=>b.valor-a.valor);
@@ -1242,7 +1257,7 @@ async function renderFechamento() {
     return `
       <div class="fc-patient ${cls}" data-pid="${esc(e.pid)}">
         <div>
-          <div class="fc-patient-name">${esc(e.nome)}</div>
+          <div class="fc-patient-name">${esc(fmtNome(e.nome))}</div>
           <div class="fc-badges">
             <span class="badge ${e.tipo==='recibo'?'blue':e.tipo==='nf'?'yellow':'gray'}">${e.tipo==='recibo'?'Recibo':e.tipo==='nf'?'NF':'Não alocado'}</span>
           </div>
@@ -1400,7 +1415,7 @@ function renderFcResumo(entries, totalDespesas) {
   const saldoLiquido  = totalEntradas - totalDespesas;
 
   const list = (arr, cor) => arr.length
-    ? arr.map(e=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px"><span>${esc(e.nome)}</span><span style="color:${cor}">${fmtBRL(e.valor)}</span></div>`).join('')
+    ? arr.map(e=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px"><span>${esc(fmtNome(e.nome))}</span><span style="color:${cor}">${fmtBRL(e.valor)}</span></div>`).join('')
     : '<div style="color:var(--text3);font-size:12px">Nenhum</div>';
 
   return `
@@ -1442,10 +1457,10 @@ function exportPDF(entries, totalDespesas, mk) {
   const totalNF  = entries.filter(e=>e.tipo==='nf').reduce((a,e)=>a+e.valor,0);
 
   const recRows = entries.filter(e=>e.tipo==='recibo').map(e=>
-    `<tr><td>${esc(e.nome)}</td><td style="text-align:right">${fmtBRL(e.valor)}</td></tr>`
+    `<tr><td>${esc(fmtNome(e.nome))}</td><td style="text-align:right">${fmtBRL(e.valor)}</td></tr>`
   ).join('');
   const nfRows = entries.filter(e=>e.tipo==='nf').map(e=>
-    `<tr><td>${esc(e.nome)}</td><td style="text-align:right">${fmtBRL(e.valor)}</td></tr>`
+    `<tr><td>${esc(fmtNome(e.nome))}</td><td style="text-align:right">${fmtBRL(e.valor)}</td></tr>`
   ).join('');
 
   const html = `
@@ -1511,7 +1526,7 @@ function exportCSV(entries, mk) {
     ['Fechamento Mensal', `${monthName} ${year}`],
     [],
     ['Paciente', 'Tipo', 'Valor (R$)'],
-    ...entries.map(e => [e.nome, e.tipo==='recibo'?'Recibo':e.tipo==='nf'?'Nota Fiscal':'Não alocado', String(e.valor).replace('.',',')]),
+    ...entries.map(e => [fmtNome(e.nome), e.tipo==='recibo'?'Recibo':e.tipo==='nf'?'Nota Fiscal':'Não alocado', hideValues?'••••':String(e.valor).replace('.',',')]),
     [],
     ['Total Recibos', '', String(entries.filter(e=>e.tipo==='recibo').reduce((a,e)=>a+e.valor,0)).replace('.',',')],
     ['Total NF', '', String(entries.filter(e=>e.tipo==='nf').reduce((a,e)=>a+e.valor,0)).replace('.',',')],
@@ -1763,7 +1778,7 @@ function drawAnaliseCharts() {
         { label: 'Saldo', data: saldoMes, type: 'line', borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', tension: 0.3, fill: true, order: 1 }
       ]
     },
-    options: { responsive: true, plugins: { legend: { labels: { color: '#94a3b8' } } }, scales: { x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e2d45' } }, y: { ticks: { color: '#94a3b8', callback: v => 'R$'+v.toLocaleString('pt-BR') }, grid: { color: '#1e2d45' } } } }
+    options: { responsive: true, plugins: { legend: { labels: { color: '#94a3b8' } } }, scales: { x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e2d45' } }, y: { ticks: { color: '#94a3b8', callback: v => hideValues?'••••':'R$'+v.toLocaleString('pt-BR') }, grid: { color: '#1e2d45' } } } }
   });
 
   // b) Despesas por categoria
@@ -1783,8 +1798,8 @@ function drawAnaliseCharts() {
   const pacTop = Object.entries(pacMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
   mkChart('ch-pacientes', {
     type: 'bar',
-    data: { labels: pacTop.map(([id])=>(pacNomes[id]||'?').split(' ')[0]), datasets: [{ label: 'Receita', data: pacTop.map(([,v])=>v), backgroundColor: 'rgba(59,130,246,0.7)' }] },
-    options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#94a3b8', callback: v=>'R$'+v.toLocaleString('pt-BR') }, grid: { color: '#1e2d45' } }, y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e2d45' } } } }
+    data: { labels: pacTop.map(([id])=>hideValues?'••••':(pacNomes[id]||'?').split(' ')[0]), datasets: [{ label: 'Receita', data: pacTop.map(([,v])=>v), backgroundColor: 'rgba(59,130,246,0.7)' }] },
+    options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#94a3b8', callback: v=>hideValues?'••••':'R$'+v.toLocaleString('pt-BR') }, grid: { color: '#1e2d45' } }, y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e2d45' } } } }
   });
 
   // d) Forma de pagamento
@@ -1803,8 +1818,8 @@ function drawAnaliseCharts() {
     .sort((a,b)=>b.valorSessao-a.valorSessao);
   mkChart('ch-sessoes', {
     type: 'bar',
-    data: { labels: sessoesPac.map(p=>p.nome.split(' ')[0]), datasets: [{ label: 'Valor/sessão', data: sessoesPac.map(p=>p.valorSessao), backgroundColor: 'rgba(139,92,246,0.7)' }] },
-    options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#94a3b8', maxRotation: 45 }, grid: { color: '#1e2d45' } }, y: { ticks: { color: '#94a3b8', callback: v=>'R$'+v.toLocaleString('pt-BR') }, grid: { color: '#1e2d45' } } } }
+    data: { labels: sessoesPac.map(p=>hideValues?'••••':p.nome.split(' ')[0]), datasets: [{ label: 'Valor/sessão', data: sessoesPac.map(p=>p.valorSessao), backgroundColor: 'rgba(139,92,246,0.7)' }] },
+    options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#94a3b8', maxRotation: 45 }, grid: { color: '#1e2d45' } }, y: { ticks: { color: '#94a3b8', callback: v=>hideValues?'••••':'R$'+v.toLocaleString('pt-BR') }, grid: { color: '#1e2d45' } } } }
   });
 }
 
