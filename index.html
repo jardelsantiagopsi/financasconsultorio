@@ -539,6 +539,7 @@ let hideValues = false;
 let _chartInstances = {};
 let analiseYear = new Date().getFullYear();
 let analiseMonths = new Set([1,2,3,4,5,6,7,8,9,10,11,12]);
+let currentPacienteId = null;
 
 // Cached data (refreshed on view change)
 let _pacientes = [];
@@ -654,10 +655,11 @@ function initNav() {
   });
 }
 
-function showView(view) {
+function showView(view, pacId=null) {
   currentView = view;
+  if (pacId) currentPacienteId = pacId;
   document.querySelectorAll('.nav-item,.bottom-nav-item').forEach(el => {
-    el.classList.toggle('active', el.dataset.view === view);
+    el.classList.toggle('active', el.dataset.view === view || (view==='paciente-detalhe' && el.dataset.view==='pacientes'));
   });
   refreshView();
 }
@@ -672,7 +674,8 @@ async function refreshView() {
     case 'receitas':   renderReceitas();  break;
     case 'despesas':   renderDespesas();  break;
     case 'fechamento': await renderFechamento();break;
-    case 'analise':    renderAnalise();         break;
+    case 'analise':          renderAnalise();          break;
+    case 'paciente-detalhe': renderPacienteDetalhe();  break;
   }
 }
 
@@ -762,7 +765,7 @@ function renderPacientes() {
   const rows = list.length ? list.map(p => {
     const actions = `<button class="btn-icon btn-edit-pac" data-id="${esc(p.id)}" title="Editar">${svgEdit}</button><button class="btn-icon btn-del-pac" data-id="${esc(p.id)}" data-nome="${esc(p.nome)}" title="Excluir">${svgDel}</button>`;
     if (isMob) return `
-      <div class="m-card" data-search="${esc((p.nome+' '+(p.cpf||'')).toLowerCase())}">
+      <div class="m-card clickable-pac" data-pac-id="${esc(p.id)}" data-search="${esc((p.nome+' '+(p.cpf||'')).toLowerCase())}" style="cursor:pointer">
         <div class="m-card-top">
           <span class="m-card-name">${fmtNome(esc(p.nome))}</span>
           <div style="display:flex;align-items:center;gap:6px">
@@ -772,7 +775,7 @@ function renderPacientes() {
         </div>
         <div class="m-card-sub">${fmtBRL(p.valorSessao)}/sessão &nbsp;·&nbsp; ${p.planoSessoes||1} sessões</div>
       </div>`;
-    return `<tr>
+    return `<tr class="clickable-pac" data-pac-id="${esc(p.id)}" style="cursor:pointer">
       <td data-label="Nome">${fmtNome(esc(p.nome))}</td>
       <td data-label="CPF">${esc(p.cpf||'—')}</td>
       <td data-label="E-mail">${esc(p.email||'—')}</td>
@@ -818,6 +821,12 @@ function renderPacientes() {
   });
   main.querySelectorAll('.btn-del-pac').forEach(btn => {
     btn.addEventListener('click', () => confirmDeletePac(btn.dataset.id, btn.dataset.nome));
+  });
+  main.querySelectorAll('.clickable-pac').forEach(el => {
+    el.addEventListener('click', e => {
+      if (e.target.closest('.btn-icon')) return;
+      showView('paciente-detalhe', el.dataset.pacId);
+    });
   });
 }
 
@@ -1686,6 +1695,124 @@ function showConfirm(msg, onYes) {
   newYes.addEventListener('click', () => {
     overlay.classList.remove('open');
     onYes();
+  });
+}
+
+// ── PACIENTE DETALHE ──────────────────────────────────────────
+function renderPacienteDetalhe() {
+  const pac = _pacientes.find(p => p.id === currentPacienteId);
+  if (!pac) { showView('pacientes'); return; }
+
+  const receitas = _receitas.filter(r => r.pacienteId === currentPacienteId)
+    .sort((a,b) => (b.data||'').localeCompare(a.data||''));
+
+  const totalPago     = receitas.filter(r=>r.status==='pago').reduce((a,r)=>a+r.valor,0);
+  const totalPendente = receitas.filter(r=>r.status==='pendente').reduce((a,r)=>a+r.valor,0);
+  const totalSessoes  = receitas.filter(r=>r.status==='pago').reduce((a,r)=>a+(r.nSessoes||1),0);
+
+  const isMob = window.innerWidth <= 768;
+  const svgEdit = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+  const svgDel  = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>`;
+
+  const rows = receitas.length ? receitas.map(r => {
+    const badge = `<span class="badge ${r.status==='pago'?'green':'yellow'}">${r.status==='pago'?'Pago':'Pendente'}</span>`;
+    const actions = `<button class="btn-icon btn-edit-rec" data-id="${esc(r.id)}" title="Editar">${svgEdit}</button><button class="btn-icon btn-del-rec" data-id="${esc(r.id)}" title="Excluir">${svgDel}</button>`;
+    if (isMob) return `
+      <div class="m-card">
+        <div class="m-card-top">
+          <div class="m-card-meta">
+            <span style="font-size:12px;color:var(--text3)">${fmtDate(r.data||r.competencia||'')}</span>
+            <span style="font-size:12px;color:var(--text3)">${esc(r.pagamento||'—')}</span>
+            ${badge}
+          </div>
+          <div style="display:flex;gap:6px">${actions}</div>
+        </div>
+        <div class="m-card-bottom">
+          <span style="font-size:13px;color:var(--text2)">${esc(r.tipo||'—')}</span>
+          <span class="m-card-value" style="color:var(--green)">${fmtBRL(r.valor)}</span>
+        </div>
+      </div>`;
+    return `<tr>
+      <td>${fmtDate(r.data||r.competencia||'')}</td>
+      <td>${esc(r.tipo||'—')}</td>
+      <td>${esc(r.pagamento||'—')}</td>
+      <td style="font-weight:600;color:var(--green)">${fmtBRL(r.valor)}</td>
+      <td>${badge}</td>
+      <td><div style="display:flex;gap:6px">${actions}</div></td>
+    </tr>`;
+  }).join('') : (isMob
+    ? `<div style="color:var(--text3);text-align:center;padding:32px">Nenhum pagamento registrado</div>`
+    : `<tr class="empty-row"><td colspan="6">Nenhum pagamento registrado</td></tr>`);
+
+  const main = document.getElementById('main-content');
+  main.innerHTML = `
+    <div style="padding:0 0 80px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap">
+        <button id="btn-back-pac" style="background:var(--surface2);border:1px solid var(--border);color:var(--text2);border-radius:6px;padding:6px 12px;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:6px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+          Pacientes
+        </button>
+        <h2 style="margin:0;font-size:18px;font-weight:700">${fmtNome(esc(pac.nome))}</h2>
+      </div>
+
+      <!-- Patient info -->
+      <div class="card" style="margin-bottom:16px">
+        <div style="padding:14px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px">
+          ${pac.cpf ? `<div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">CPF</div><div style="font-size:13px">${esc(pac.cpf)}</div></div>` : ''}
+          ${pac.email ? `<div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">E-mail</div><div style="font-size:13px">${esc(pac.email)}</div></div>` : ''}
+          <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Valor/Sessão</div><div style="font-size:13px">${fmtBRL(pac.valorSessao)}</div></div>
+          <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Plano</div><div style="font-size:13px">${pac.planoSessoes||1} sessões</div></div>
+          <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Tipo</div><div><span class="badge ${pac.convenio?'blue':'gray'}">${pac.convenio?'Convênio':'Particular'}</span></div></div>
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpi-grid" style="margin-bottom:16px">
+        <div class="kpi-card">
+          <div class="kpi-label">Total Recebido</div>
+          <div class="kpi-value green">${fmtBRL(totalPago)}</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">A Receber</div>
+          <div class="kpi-value yellow">${fmtBRL(totalPendente)}</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Sessões Pagas</div>
+          <div class="kpi-value blue" style="font-variant-numeric:tabular-nums">${totalSessoes}</div>
+        </div>
+      </div>
+
+      <!-- Payments list -->
+      <div class="section-header">
+        <div class="section-title">Pagamentos <span style="font-size:13px;font-weight:400;color:var(--text3)">(${receitas.length})</span></div>
+        <button class="btn btn-primary" id="btn-new-rec-pac">+ Nova Receita</button>
+      </div>
+      ${isMob
+        ? `<div>${rows}</div>`
+        : `<div class="card"><table>
+            <thead><tr><th>Data</th><th>Tipo</th><th>Pagamento</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+            <tbody>${rows}</tbody>
+           </table></div>`
+      }
+    </div>
+  `;
+
+  document.getElementById('btn-back-pac').addEventListener('click', () => showView('pacientes'));
+  document.getElementById('btn-new-rec-pac').addEventListener('click', () => openRecModal({pacienteId: currentPacienteId}));
+  main.querySelectorAll('.btn-edit-rec').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const r = _receitas.find(x=>x.id===btn.dataset.id);
+      if(r) openRecModal(r);
+    });
+  });
+  main.querySelectorAll('.btn-del-rec').forEach(btn => {
+    btn.addEventListener('click', () => {
+      showConfirm('Excluir este pagamento?', async () => {
+        await col('receitas').doc(btn.dataset.id).delete();
+        toast('Pagamento excluído','info');
+        refreshView();
+      });
+    });
   });
 }
 
