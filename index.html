@@ -331,6 +331,15 @@ tr:hover td { background:rgba(255,255,255,.02); }
   table tbody td[data-label]::before { content:attr(data-label); color:var(--text3); font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; flex-shrink:0; padding-right:12px; }
   table tbody td.empty-row { display:table-cell; text-align:center; }
 
+  /* Compact mobile cards */
+  .m-card { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:10px; }
+  .m-card-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .m-card-meta { display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .m-card-bottom { display:flex; justify-content:space-between; align-items:center; }
+  .m-card-name { font-size:14px; font-weight:500; color:var(--text); }
+  .m-card-value { font-size:16px; font-weight:700; }
+  .m-card-sub { font-size:12px; color:var(--text2); margin-top:4px; }
+
   .filter-row { flex-direction:column; align-items:stretch; }
   .filter-row input { min-width:0; width:100%; }
   .filter-row select { width:100%; }
@@ -345,6 +354,11 @@ tr:hover td { background:rgba(255,255,255,.02); }
   .toast-container { top:auto; bottom:84px; right:12px; left:12px; }
   .toast { max-width:100%; }
 }
+
+/* Privacy blur mode */
+body.hide-mode .sv { filter:blur(6px); user-select:none; pointer-events:none; }
+body.hide-mode .sn { filter:blur(6px); user-select:none; pointer-events:none; }
+body.hide-mode canvas { filter:blur(8px); }
 </style>
 </head>
 <body>
@@ -480,8 +494,8 @@ const db   = firebase.firestore();
 
 // ── Helpers ──────────────────────────────────────────────────
 const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-const fmtBRL  = v => hideValues ? 'R$ ••••' : new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v||0);
-const fmtNome = s => hideValues ? '••••••••' : (s || '');
+const fmtBRL  = v => `<span class="sv">${new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(v||0)}</span>`;
+const fmtNome = s => `<span class="sn">${s || ''}</span>`;
 const fmtDate = s => s ? s.split('-').reverse().join('/') : '';
 const uid = () => crypto.randomUUID();
 
@@ -561,13 +575,13 @@ document.getElementById('btn-filter-mode').addEventListener('click', () => {
 });
 document.getElementById('btn-hide-values').addEventListener('click', () => {
   hideValues = !hideValues;
+  document.body.classList.toggle('hide-mode', hideValues);
   const btn = document.getElementById('btn-hide-values');
   btn.style.color = hideValues ? 'var(--accent2)' : 'var(--text2)';
   btn.style.borderColor = hideValues ? 'var(--accent2)' : 'var(--border)';
   btn.querySelector('svg').innerHTML = hideValues
     ? '<path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
     : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
-  refreshView();
 });
 
 // ── Firestore helpers ────────────────────────────────────────
@@ -701,7 +715,7 @@ function renderDashboard() {
 
   const recentHTML = recent.length ? recent.map(item => {
     const pac = item._type==='receita' ? _pacientes.find(p=>p.id===item.pacienteId) : null;
-    const name = item._type==='receita' ? (pac?esc(fmtNome(pac.nome)):'<span style="color:var(--text3)">(paciente removido)</span>') : esc(item.categoria||'—');
+    const name = item._type==='receita' ? (pac?fmtNome(esc(pac.nome)):'<span style="color:var(--text3)">(paciente removido)</span>') : esc(item.categoria||'—');
     return `<tr>
       <td>${fmtDate(item.data||item.competencia||'')}</td>
       <td>${name}</td>
@@ -741,26 +755,33 @@ function renderPacientes() {
   const main = document.getElementById('main-content');
   const list = _pacientes;
 
-  const rows = list.length ? list.map(p => `
-    <tr>
-      <td data-label="Nome">${esc(fmtNome(p.nome))}</td>
+  const isMob = window.innerWidth <= 768;
+  const svgEdit = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+  const svgDel  = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>`;
+
+  const rows = list.length ? list.map(p => {
+    const actions = `<button class="btn-icon btn-edit-pac" data-id="${esc(p.id)}" title="Editar">${svgEdit}</button><button class="btn-icon btn-del-pac" data-id="${esc(p.id)}" data-nome="${esc(p.nome)}" title="Excluir">${svgDel}</button>`;
+    if (isMob) return `
+      <div class="m-card" data-search="${esc((p.nome+' '+(p.cpf||'')).toLowerCase())}">
+        <div class="m-card-top">
+          <span class="m-card-name">${fmtNome(esc(p.nome))}</span>
+          <div style="display:flex;align-items:center;gap:6px">
+            <span class="badge ${p.convenio?'blue':'gray'}">${p.convenio?'Convênio':'Particular'}</span>
+            ${actions}
+          </div>
+        </div>
+        <div class="m-card-sub">${fmtBRL(p.valorSessao)}/sessão &nbsp;·&nbsp; ${p.planoSessoes||1} sessões</div>
+      </div>`;
+    return `<tr>
+      <td data-label="Nome">${fmtNome(esc(p.nome))}</td>
       <td data-label="CPF">${esc(p.cpf||'—')}</td>
       <td data-label="E-mail">${esc(p.email||'—')}</td>
       <td data-label="Valor/Sessão">${fmtBRL(p.valorSessao)}</td>
       <td data-label="Plano">${p.planoSessoes||1} sessões</td>
       <td data-label="Tipo"><span class="badge ${p.convenio?'blue':'gray'}">${p.convenio?'Convênio':'Particular'}</span></td>
-      <td>
-        <div style="display:flex;gap:6px">
-          <button class="btn-icon btn-edit-pac" data-id="${esc(p.id)}" title="Editar">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="btn-icon btn-del-pac" data-id="${esc(p.id)}" data-nome="${esc(p.nome)}" title="Excluir">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-          </button>
-        </div>
-      </td>
-    </tr>
-  `).join('') : '<tr class="empty-row"><td colspan="7">Nenhum paciente cadastrado</td></tr>';
+      <td><div style="display:flex;gap:6px">${actions}</div></td>
+    </tr>`;
+  }).join('') : (isMob ? '<div style="color:var(--text3);text-align:center;padding:32px">Nenhum paciente cadastrado</div>' : '<tr class="empty-row"><td colspan="7">Nenhum paciente cadastrado</td></tr>');
 
   main.innerHTML = `
     <div class="section-header">
@@ -770,21 +791,24 @@ function renderPacientes() {
     <div class="filter-row">
       <input type="text" id="filter-pac" placeholder="Buscar por nome ou CPF...">
     </div>
-    <div class="card">
-      <table>
-        <thead><tr><th>Nome</th><th>CPF</th><th>E-mail</th><th>Valor/Sessão</th><th>Plano</th><th>Tipo</th><th></th></tr></thead>
-        <tbody id="pac-tbody">${rows}</tbody>
-      </table>
-    </div>
+    ${isMob
+      ? `<div id="pac-cards">${rows}</div>`
+      : `<div class="card"><table><thead><tr><th>Nome</th><th>CPF</th><th>E-mail</th><th>Valor/Sessão</th><th>Plano</th><th>Tipo</th><th></th></tr></thead><tbody id="pac-tbody">${rows}</tbody></table></div>`
+    }
   `;
 
   document.getElementById('btn-new-pac').addEventListener('click', () => openPacModal());
   document.getElementById('filter-pac').addEventListener('input', e => {
     const q = e.target.value.toLowerCase();
-    document.querySelectorAll('#pac-tbody tr:not(.empty-row)').forEach(tr => {
-      const text = tr.textContent.toLowerCase();
-      tr.style.display = text.includes(q) ? '' : 'none';
-    });
+    if (isMob) {
+      document.querySelectorAll('#pac-cards .m-card').forEach(card => {
+        card.style.display = (card.dataset.search||'').includes(q) ? '' : 'none';
+      });
+    } else {
+      document.querySelectorAll('#pac-tbody tr:not(.empty-row)').forEach(tr => {
+        tr.style.display = tr.textContent.toLowerCase().includes(q) ? '' : 'none';
+      });
+    }
   });
   main.querySelectorAll('.btn-edit-pac').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -894,28 +918,40 @@ function renderReceitas() {
 
   list.sort((a,b)=>(b.data||'').localeCompare(a.data||''));
 
+  const isMob = window.innerWidth <= 768;
+  const svgEdit = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+  const svgDel  = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>`;
+
   const rows = list.length ? list.map(r => {
     const pac = _pacientes.find(p=>p.id===r.pacienteId);
-    const pacNome = pac ? esc(fmtNome(pac.nome)) : '<span style="color:var(--yellow)">⚠ paciente removido</span>';
+    const pacNome = pac ? fmtNome(esc(pac.nome)) : '<span style="color:var(--yellow)">⚠ removido</span>';
+    const badge = `<span class="badge ${r.status==='pago'?'green':'yellow'}">${r.status==='pago'?'Pago':'Pendente'}</span>`;
+    const actions = `<button class="btn-icon btn-edit-rec" data-id="${esc(r.id)}" title="Editar">${svgEdit}</button><button class="btn-icon btn-del-rec" data-id="${esc(r.id)}" title="Excluir">${svgDel}</button>`;
+    if (isMob) return `
+      <div class="m-card">
+        <div class="m-card-top">
+          <div class="m-card-meta">
+            <span style="font-size:12px;color:var(--text3)">${fmtDate(r.data||r.competencia||'')}</span>
+            <span style="font-size:12px;color:var(--text3)">${esc(r.pagamento||'—')}</span>
+            ${badge}
+          </div>
+          <div style="display:flex;gap:6px">${actions}</div>
+        </div>
+        <div class="m-card-bottom">
+          <span class="m-card-name">${pacNome}</span>
+          <span class="m-card-value" style="color:var(--green)">${fmtBRL(r.valor)}</span>
+        </div>
+      </div>`;
     return `<tr>
       <td data-label="Data">${fmtDate(r.data||r.competencia||'')}</td>
       <td data-label="Paciente">${pacNome}</td>
       <td data-label="Tipo">${esc(r.tipo||'—')}</td>
       <td data-label="Pagamento">${esc(r.pagamento||'—')}</td>
       <td data-label="Valor" style="font-weight:600;color:var(--green)">${fmtBRL(r.valor)}</td>
-      <td data-label="Status"><span class="badge ${r.status==='pago'?'green':'yellow'}">${r.status==='pago'?'Pago':'Pendente'}</span></td>
-      <td>
-        <div style="display:flex;gap:6px">
-          <button class="btn-icon btn-edit-rec" data-id="${esc(r.id)}" title="Editar">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="btn-icon btn-del-rec" data-id="${esc(r.id)}" title="Excluir">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-          </button>
-        </div>
-      </td>
+      <td data-label="Status">${badge}</td>
+      <td><div style="display:flex;gap:6px">${actions}</div></td>
     </tr>`;
-  }).join('') : '<tr class="empty-row"><td colspan="7">Nenhuma receita neste mês</td></tr>';
+  }).join('') : (isMob ? '<div style="color:var(--text3);text-align:center;padding:32px">Nenhuma receita neste mês</div>' : '<tr class="empty-row"><td colspan="7">Nenhuma receita neste mês</td></tr>');
 
   const total = list.reduce((a,r)=>a+(r.valor||0),0);
   const main = document.getElementById('main-content');
@@ -926,12 +962,10 @@ function renderReceitas() {
       </div>
       <button class="btn btn-primary" id="btn-new-rec">+ Nova Receita</button>
     </div>
-    <div class="card">
-      <table>
-        <thead><tr><th>Data</th><th>Paciente</th><th>Tipo</th><th>Pagamento</th><th>Valor</th><th>Status</th><th></th></tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
+    ${isMob
+      ? `<div id="rec-cards">${rows}</div>`
+      : `<div class="card"><table><thead><tr><th>Data</th><th>Paciente</th><th>Tipo</th><th>Pagamento</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+    }
   `;
 
   document.getElementById('btn-new-rec').addEventListener('click', () => openRecModal());
@@ -1095,24 +1129,34 @@ function renderDespesas() {
     </div>
   `).join('');
 
-  const rows = list.length ? list.map(d => `
-    <tr>
+  const isMob = window.innerWidth <= 768;
+  const svgEdit = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+  const svgDel  = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>`;
+
+  const rows = list.length ? list.map(d => {
+    const actions = `<button class="btn-icon btn-edit-desp" data-id="${esc(d.id)}" title="Editar">${svgEdit}</button><button class="btn-icon btn-del-desp" data-id="${esc(d.id)}" title="Excluir">${svgDel}</button>`;
+    if (isMob) return `
+      <div class="m-card">
+        <div class="m-card-top">
+          <div class="m-card-meta">
+            <span style="font-size:12px;color:var(--text3)">${fmtDate(d.data||d.competencia||'')}</span>
+            <span class="badge gray">${esc(d.categoria||'—')}</span>
+          </div>
+          <div style="display:flex;gap:6px">${actions}</div>
+        </div>
+        <div class="m-card-bottom">
+          <span class="m-card-name">${esc(d.descricao||'—')}</span>
+          <span class="m-card-value" style="color:var(--red)">${fmtBRL(d.valor)}</span>
+        </div>
+      </div>`;
+    return `<tr>
       <td data-label="Data">${fmtDate(d.data||d.competencia||'')}</td>
       <td data-label="Descrição">${esc(d.descricao||'—')}</td>
       <td data-label="Categoria"><span class="badge gray">${esc(d.categoria||'—')}</span></td>
       <td data-label="Valor" style="font-weight:600;color:var(--red)">${fmtBRL(d.valor)}</td>
-      <td>
-        <div style="display:flex;gap:6px">
-          <button class="btn-icon btn-edit-desp" data-id="${esc(d.id)}" title="Editar">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-          </button>
-          <button class="btn-icon btn-del-desp" data-id="${esc(d.id)}" title="Excluir">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
-          </button>
-        </div>
-      </td>
-    </tr>
-  `).join('') : '<tr class="empty-row"><td colspan="5">Nenhuma despesa neste mês</td></tr>';
+      <td><div style="display:flex;gap:6px">${actions}</div></td>
+    </tr>`;
+  }).join('') : (isMob ? '<div style="color:var(--text3);text-align:center;padding:32px">Nenhuma despesa neste mês</div>' : '<tr class="empty-row"><td colspan="5">Nenhuma despesa neste mês</td></tr>');
 
   const main = document.getElementById('main-content');
   main.innerHTML = `
@@ -1122,13 +1166,11 @@ function renderDespesas() {
       </div>
       <button class="btn btn-primary" id="btn-new-desp">+ Nova Despesa</button>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 280px;gap:16px;align-items:start">
-      <div class="card">
-        <table>
-          <thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th></th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>
+    <div style="display:grid;grid-template-columns:${isMob?'1fr':'1fr 280px'};gap:16px;align-items:start">
+      ${isMob
+        ? `<div id="desp-cards">${rows}</div>`
+        : `<div class="card"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+      }
       <div class="card">
         <div class="card-header"><span class="card-title">Por categoria</span></div>
         <div style="padding:12px 16px">
@@ -1266,7 +1308,7 @@ async function renderFechamento() {
     return `
       <div class="fc-patient ${cls}" data-pid="${esc(e.pid)}">
         <div>
-          <div class="fc-patient-name">${esc(fmtNome(e.nome))}</div>
+          <div class="fc-patient-name">${fmtNome(esc(e.nome))}</div>
           <div class="fc-badges">
             <span class="badge ${e.tipo==='recibo'?'blue':e.tipo==='nf'?'yellow':'gray'}">${e.tipo==='recibo'?'Recibo':e.tipo==='nf'?'NF':'Não alocado'}</span>
           </div>
@@ -1346,7 +1388,7 @@ async function renderFechamento() {
     const bar = document.getElementById('fc-progress');
     if(bar) { bar.style.width=p+'%'; bar.className=`progress-bar ${p>=85?'red':p>=80?'orange':'green'}`; }
     const rt = document.getElementById('fc-recibo-total');
-    if(rt) rt.textContent = fmtBRL(rec);
+    if(rt) rt.innerHTML = fmtBRL(rec);
   }
 
   // Single source of truth for click handlers — called after every render
@@ -1424,7 +1466,7 @@ function renderFcResumo(entries, totalDespesas) {
   const saldoLiquido  = totalEntradas - totalDespesas;
 
   const list = (arr, cor) => arr.length
-    ? arr.map(e=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px"><span>${esc(fmtNome(e.nome))}</span><span style="color:${cor}">${fmtBRL(e.valor)}</span></div>`).join('')
+    ? arr.map(e=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:12px"><span>${fmtNome(esc(e.nome))}</span><span style="color:${cor}">${fmtBRL(e.valor)}</span></div>`).join('')
     : '<div style="color:var(--text3);font-size:12px">Nenhum</div>';
 
   return `
@@ -1466,10 +1508,10 @@ function exportPDF(entries, totalDespesas, mk) {
   const totalNF  = entries.filter(e=>e.tipo==='nf').reduce((a,e)=>a+e.valor,0);
 
   const recRows = entries.filter(e=>e.tipo==='recibo').map(e=>
-    `<tr><td>${esc(fmtNome(e.nome))}</td><td style="text-align:right">${fmtBRL(e.valor)}</td></tr>`
+    `<tr><td>${fmtNome(esc(e.nome))}</td><td style="text-align:right">${fmtBRL(e.valor)}</td></tr>`
   ).join('');
   const nfRows = entries.filter(e=>e.tipo==='nf').map(e=>
-    `<tr><td>${esc(fmtNome(e.nome))}</td><td style="text-align:right">${fmtBRL(e.valor)}</td></tr>`
+    `<tr><td>${fmtNome(esc(e.nome))}</td><td style="text-align:right">${fmtBRL(e.valor)}</td></tr>`
   ).join('');
 
   const html = `
@@ -1535,7 +1577,7 @@ function exportCSV(entries, mk) {
     ['Fechamento Mensal', `${monthName} ${year}`],
     [],
     ['Paciente', 'Tipo', 'Valor (R$)'],
-    ...entries.map(e => [fmtNome(e.nome), e.tipo==='recibo'?'Recibo':e.tipo==='nf'?'Nota Fiscal':'Não alocado', hideValues?'••••':String(e.valor).replace('.',',')]),
+    ...entries.map(e => [e.nome||'', e.tipo==='recibo'?'Recibo':e.tipo==='nf'?'Nota Fiscal':'Não alocado', String(e.valor).replace('.',',')]),
     [],
     ['Total Recibos', '', String(entries.filter(e=>e.tipo==='recibo').reduce((a,e)=>a+e.valor,0)).replace('.',',')],
     ['Total NF', '', String(entries.filter(e=>e.tipo==='nf').reduce((a,e)=>a+e.valor,0)).replace('.',',')],
@@ -1787,7 +1829,7 @@ function drawAnaliseCharts() {
         { label: 'Saldo', data: saldoMes, type: 'line', borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', tension: 0.3, fill: true, order: 1 }
       ]
     },
-    options: { responsive: true, plugins: { legend: { labels: { color: '#94a3b8' } } }, scales: { x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e2d45' } }, y: { ticks: { color: '#94a3b8', callback: v => hideValues?'••••':'R$'+v.toLocaleString('pt-BR') }, grid: { color: '#1e2d45' } } } }
+    options: { responsive: true, plugins: { legend: { labels: { color: '#94a3b8' } } }, scales: { x: { ticks: { color: '#94a3b8' }, grid: { color: '#1e2d45' } }, y: { ticks: { color: '#94a3b8', callback: v => 'R$'+v.toLocaleString('pt-BR') }, grid: { color: '#1e2d45' } } } }
   });
 
   // b) Despesas por categoria
@@ -1807,7 +1849,7 @@ function drawAnaliseCharts() {
   const pacTop = Object.entries(pacMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
   mkChart('ch-pacientes', {
     type: 'bar',
-    data: { labels: pacTop.map(([id])=>hideValues?'••••':(pacNomes[id]||'?').split(' ')[0]), datasets: [{ label: 'Receita', data: pacTop.map(([,v])=>v), backgroundColor: 'rgba(59,130,246,0.7)' }] },
+    data: { labels: pacTop.map(([id])=>(pacNomes[id]||'?').split(' ')[0]), datasets: [{ label: 'Receita', data: pacTop.map(([,v])=>v), backgroundColor: 'rgba(59,130,246,0.7)' }] },
     options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#94a3b8', callback: v=>hideValues?'••••':'R$'+v.toLocaleString('pt-BR') }, grid: { color: '#1e2d45' } }, y: { ticks: { color: '#94a3b8' }, grid: { color: '#1e2d45' } } } }
   });
 
@@ -1827,7 +1869,7 @@ function drawAnaliseCharts() {
     .sort((a,b)=>b.valorSessao-a.valorSessao);
   mkChart('ch-sessoes', {
     type: 'bar',
-    data: { labels: sessoesPac.map(p=>hideValues?'••••':p.nome.split(' ')[0]), datasets: [{ label: 'Valor/sessão', data: sessoesPac.map(p=>p.valorSessao), backgroundColor: 'rgba(139,92,246,0.7)' }] },
+    data: { labels: sessoesPac.map(p=>p.nome.split(' ')[0]), datasets: [{ label: 'Valor/sessão', data: sessoesPac.map(p=>p.valorSessao), backgroundColor: 'rgba(139,92,246,0.7)' }] },
     options: { responsive: true, plugins: { legend: { display: false } }, scales: { x: { ticks: { color: '#94a3b8', maxRotation: 45 }, grid: { color: '#1e2d45' } }, y: { ticks: { color: '#94a3b8', callback: v=>hideValues?'••••':'R$'+v.toLocaleString('pt-BR') }, grid: { color: '#1e2d45' } } } }
   });
 }
