@@ -322,8 +322,14 @@ tr:hover td { background:rgba(255,255,255,.02); }
   .form-grid { grid-template-columns:1fr; }
   .form-grid .span2 { grid-column:span 1; }
 
-  .card { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-  table { min-width:480px; }
+  .card { overflow-x:unset; }
+  table { min-width:unset !important; }
+  table thead { display:none; }
+  table tbody tr { display:block; border:1px solid var(--border); border-radius:10px; margin-bottom:10px; overflow:hidden; }
+  table tbody td { display:flex; justify-content:space-between; align-items:center; padding:9px 14px; border-bottom:1px solid var(--border); font-size:13px; }
+  table tbody tr td:last-child { border-bottom:none; }
+  table tbody td[data-label]::before { content:attr(data-label); color:var(--text3); font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:.5px; flex-shrink:0; padding-right:12px; }
+  table tbody td.empty-row { display:table-cell; text-align:center; }
 
   .filter-row { flex-direction:column; align-items:stretch; }
   .filter-row input { min-width:0; width:100%; }
@@ -737,12 +743,12 @@ function renderPacientes() {
 
   const rows = list.length ? list.map(p => `
     <tr>
-      <td>${esc(fmtNome(p.nome))}</td>
-      <td>${esc(p.cpf||'—')}</td>
-      <td>${esc(p.email||'—')}</td>
-      <td>${fmtBRL(p.valorSessao)}</td>
-      <td>${p.planoSessoes||1} sessões</td>
-      <td><span class="badge ${p.convenio?'blue':'gray'}">${p.convenio?'Convênio':'Particular'}</span></td>
+      <td data-label="Nome">${esc(fmtNome(p.nome))}</td>
+      <td data-label="CPF">${esc(p.cpf||'—')}</td>
+      <td data-label="E-mail">${esc(p.email||'—')}</td>
+      <td data-label="Valor/Sessão">${fmtBRL(p.valorSessao)}</td>
+      <td data-label="Plano">${p.planoSessoes||1} sessões</td>
+      <td data-label="Tipo"><span class="badge ${p.convenio?'blue':'gray'}">${p.convenio?'Convênio':'Particular'}</span></td>
       <td>
         <div style="display:flex;gap:6px">
           <button class="btn-icon btn-edit-pac" data-id="${esc(p.id)}" title="Editar">
@@ -892,12 +898,12 @@ function renderReceitas() {
     const pac = _pacientes.find(p=>p.id===r.pacienteId);
     const pacNome = pac ? esc(fmtNome(pac.nome)) : '<span style="color:var(--yellow)">⚠ paciente removido</span>';
     return `<tr>
-      <td>${fmtDate(r.data||r.competencia||'')}</td>
-      <td>${pacNome}</td>
-      <td>${esc(r.tipo||'—')}</td>
-      <td>${esc(r.pagamento||'—')}</td>
-      <td style="font-weight:600;color:var(--green)">${fmtBRL(r.valor)}</td>
-      <td><span class="badge ${r.status==='pago'?'green':'yellow'}">${r.status==='pago'?'Pago':'Pendente'}</span></td>
+      <td data-label="Data">${fmtDate(r.data||r.competencia||'')}</td>
+      <td data-label="Paciente">${pacNome}</td>
+      <td data-label="Tipo">${esc(r.tipo||'—')}</td>
+      <td data-label="Pagamento">${esc(r.pagamento||'—')}</td>
+      <td data-label="Valor" style="font-weight:600;color:var(--green)">${fmtBRL(r.valor)}</td>
+      <td data-label="Status"><span class="badge ${r.status==='pago'?'green':'yellow'}">${r.status==='pago'?'Pago':'Pendente'}</span></td>
       <td>
         <div style="display:flex;gap:6px">
           <button class="btn-icon btn-edit-rec" data-id="${esc(r.id)}" title="Editar">
@@ -1091,10 +1097,10 @@ function renderDespesas() {
 
   const rows = list.length ? list.map(d => `
     <tr>
-      <td>${fmtDate(d.data||d.competencia||'')}</td>
-      <td>${esc(d.descricao||'—')}</td>
-      <td><span class="badge gray">${esc(d.categoria||'—')}</span></td>
-      <td style="font-weight:600;color:var(--red)">${fmtBRL(d.valor)}</td>
+      <td data-label="Data">${fmtDate(d.data||d.competencia||'')}</td>
+      <td data-label="Descrição">${esc(d.descricao||'—')}</td>
+      <td data-label="Categoria"><span class="badge gray">${esc(d.categoria||'—')}</span></td>
+      <td data-label="Valor" style="font-weight:600;color:var(--red)">${fmtBRL(d.valor)}</td>
       <td>
         <div style="display:flex;gap:6px">
           <button class="btn-icon btn-edit-desp" data-id="${esc(d.id)}" title="Editar">
